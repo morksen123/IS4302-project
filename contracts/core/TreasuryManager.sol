@@ -3,16 +3,24 @@ pragma solidity >=0.5.0 <0.9.0;
 
 import "../interfaces/ITreasuryManager.sol";
 import "../storage/TreasuryStorage.sol";
+import "../interfaces/IUnitManager.sol";
 
 contract TreasuryManager is ITreasuryManager {
     TreasuryStorage private treasuryStorage;
     address private owner;
     uint256 private constant INITIAL_MINIMUM_RESERVE = 10 ether; // Example: 10 ETH
 
-    constructor(address storageAddress) {
+    IUnitManager private unitManager;
+    uint256 private constant COLLECTION_INTERVAL = 30 days;
+    mapping(address => uint256) private lastCollectionTime;
+
+    constructor(address storageAddress, address unitManagerAddress) {
+        require(storageAddress != address(0), "Invalid storage address");
+        require(unitManagerAddress != address(0), "Invalid unit manager address");
+        
         treasuryStorage = TreasuryStorage(storageAddress);
+        unitManager = IUnitManager(unitManagerAddress);
         owner = msg.sender;
-        treasuryStorage.setMinimumReserve(INITIAL_MINIMUM_RESERVE);
     }
 
     modifier onlyOwner() {
@@ -74,5 +82,27 @@ contract TreasuryManager is ITreasuryManager {
     receive() external payable {
         require(msg.value > 0, "Cannot send 0 ETH");
         emit FundsReceived(msg.sender, msg.value);
+    }
+
+    // Collect management fees from all units
+    function collectManagementFees(address[] calldata units) external onlyOwner {
+        for (uint i = 0; i < units.length; i++) {
+            address unit = units[i];
+            if (block.timestamp >= lastCollectionTime[unit] + COLLECTION_INTERVAL) {
+                uint256 fee = unitManager.getManagementFee(unit);
+                require(fee > 0, "No fee due");
+
+                // Record collection time
+                lastCollectionTime[unit] = block.timestamp;
+
+                // Try to collect the fee by calling payManagementFee
+                try unitManager.payManagementFee{value: fee}() {
+                    emit FeeCollected(unit, fee, true);
+                } catch {
+                    // If collection fails, record as unsuccessful
+                    emit FeeCollected(unit, fee, false);
+                }
+            }
+        }
     }
 }
