@@ -4,68 +4,116 @@ pragma solidity >=0.5.0 <0.9.0;
 
 import "../core/UnitManager.sol";
 import "../interfaces/IVotingSystem.sol";
+import "../core/UnitManager.sol";
+import "../interfaces/IUnitManager.sol";
 
-contract VotingSystem is IVotingSystem {
+contract VotingSystem {
     struct Proposal {
-        bytes32 name;
-        uint voteCount;
+        address proposer;
+        string title;
+        string objectives;
+        string background;
+        string implementationPlan;
+        string budget;
+        uint256 dateCreated; // Use a timestamp for the date created
+        uint256 votesFor;
+        uint256 votesAgainst;
+        bool isActive; // To track if the proposal is active
     }
 
-    IUnitManager private unitManager;
-    Proposal[] private proposals;
-    bool public votingActive;
-    uint256 public lastVotingYear;
+    Proposal[] public proposals; 
+    mapping(address => bool) public registeredProposers; 
+    IUnitManager public unitManager;
 
-    constructor(address unitManagerAddress) public {
-        unitManager = IUnitManager(unitManagerAddress);
+    constructor(address _unitManager) public {
+        unitManager = IUnitManager(_unitManager); // Set the UnitManager reference
     }
 
-    function startVotingSession(bytes32[] calldata proposalNames) external override {
-        require(!votingActive, "Voting session already active");
-        // TODO init proposals from TicketSystem
-        emit VotingSessionStarted(block.timestamp, proposalNames);
+    // Events
+    event ProposalCreated(uint256 proposalId, address indexed proposer, string title);
+    event VoteCast(uint256 proposalId, address indexed voter, bool support);
+
+    // Function to create a proposal
+    function createProposal(
+        address _proposer,
+        string memory _title,
+        string memory _objectives,
+        string memory _background,
+        string memory _implementationPlan,
+        string memory _budget
+    ) external {
+        require(_proposer != address(0), "Invalid proposer address");
+        require(unitManager.isRegistered(_proposer), "Unit is not registered");
+        require(unitManager.hasVotingRights(_proposer), "Unit does not have voting rights");
+
+        Proposal memory newProposal = Proposal({
+            proposer: _proposer,
+            title: _title,
+            objectives: _objectives,
+            background: _background,
+            implementationPlan: _implementationPlan,
+            budget: _budget,
+            dateCreated: block.timestamp,
+            votesFor: 0,
+            votesAgainst: 0,
+            isActive: true
+        });
+
+        proposals.push(newProposal); // Add the new proposal to the proposals array
+        emit ProposalCreated(proposals.length - 1, _proposer, _title); // Emit event for proposal creation
     }
 
-    function endVotingSession() external override {
-        require(votingActive, "No active voting session");
-        votingActive = false;
-        emit VotingSessionEnded(block.timestamp);
+    // Function to cast a vote for a proposal
+    function vote(uint256 proposalId, bool support) external {
+        require(proposalId < proposals.length, "Invalid proposal ID");
+        Proposal storage proposal = proposals[proposalId];
+
+        require(proposal.isActive, "Proposal is no longer active"); // Ensure proposal is active
+
+        if (support) {
+            proposal.votesFor++; // Increment votes for
+        } else {
+            proposal.votesAgainst++; // Increment votes against
+        }
+
+        emit VoteCast(proposalId, msg.sender, support); // Emit event for vote casting
     }
 
-    function grantVotingRights(address unitAddress) external override {
-        unitManager.updateVotingRights(unitAddress, true);
-        emit VotingRightsGranted(unitAddress);
+    // Function to get proposal details
+    function getProposal(uint256 proposalId) external view returns (
+        address proposer,
+        string memory title,
+        string memory objectives,
+        string memory background,
+        string memory implementationPlan,
+        string memory budget,
+        uint256 dateCreated,
+        uint256 votesFor,
+        uint256 votesAgainst,
+        bool isActive
+    ) {
+        require(proposalId < proposals.length, "Invalid proposal ID");
+        Proposal storage proposal = proposals[proposalId];
+
+        return (
+            proposal.proposer,
+            proposal.title,
+            proposal.objectives,
+            proposal.background,
+            proposal.implementationPlan,
+            proposal.budget,
+            proposal.dateCreated,
+            proposal.votesFor,
+            proposal.votesAgainst,
+            proposal.isActive
+        );
     }
 
-    function revokeVotingRights(address unitAddress) external override {
-        unitManager.updateVotingRights(unitAddress, false);
-        emit VotingRightsRevoked(unitAddress);
-    }
+    // Function to deactivate a proposal (e.g., after voting is complete)
+    function deactivateProposal(uint256 proposalId) external {
+        require(proposalId < proposals.length, "Invalid proposal ID");
+        Proposal storage proposal = proposals[proposalId];
 
-    function vote(uint proposalIndex) external override {
-        require(votingActive, "No active voting session");
-        require(unitManager.hasVotingRights(msg.sender), "No voting rights");
-        proposals[proposalIndex].voteCount += 1;
-        emit VoteCast(msg.sender, proposalIndex);
-    }
-
-    function getWinnerName() external view override returns (bytes32) {
-        require(!votingActive, "Voting session still active");
-        // ... (calculate and return winner name) 
-        //TODO decide which are approved, rejected, onhold. within budget, minVotesRequired etc
-        //TODO modify to return list of approved proposals within budget
-    }
-
-    // Additional view functions for proposals
-    function getProposalCount() external view override returns (uint256) {
-        return proposals.length;
-    }
-
-    function getProposalName(uint proposalIndex) external view override returns (bytes32) {
-        return proposals[proposalIndex].name;
-    }
-
-    function getVoteCount(uint proposalIndex) external view override returns (uint256) {
-        return proposals[proposalIndex].voteCount;
+        proposal.isActive = false; // Deactivate the proposal
     }
 }
