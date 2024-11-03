@@ -22,8 +22,9 @@ contract VotingSystem {
     }
 
     Proposal[] public proposals; 
-    mapping(address => bool) public registeredProposers; 
     IUnitManager public unitManager;
+    // Mapping to track if a unit has voted on a specific proposal
+    mapping(uint256 => mapping(address => bool)) public hasVoted;
 
     constructor(address _unitManager) public {
         unitManager = IUnitManager(_unitManager); // Set the UnitManager reference
@@ -66,16 +67,19 @@ contract VotingSystem {
     // Function to cast a vote for a proposal
     function vote(uint256 proposalId, bool support) external {
         require(proposalId < proposals.length, "Invalid proposal ID");
+        require(proposals[proposalId].isActive, "Proposal is not active");
+        require(unitManager.isRegistered(msg.sender), "Unit is not registered");
+        require(unitManager.hasVotingRights(msg.sender), "Unit does not have voting rights");
+        require(!hasVoted[proposalId][msg.sender], "Unit already voted on this proposal");
+
         Proposal storage proposal = proposals[proposalId];
 
-        require(proposal.isActive, "Proposal is no longer active"); // Ensure proposal is active
-
         if (support) {
-            proposal.votesFor++; // Increment votes for
+            proposal.votesFor++;
         } else {
-            proposal.votesAgainst++; // Increment votes against
+            proposal.votesAgainst++; 
         }
-
+        hasVoted[proposalId][msg.sender] = true;
         emit VoteCast(proposalId, msg.sender, support); // Emit event for vote casting
     }
 

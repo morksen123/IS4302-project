@@ -37,6 +37,10 @@ contract("VotingSystem", (accounts) => {
       budget
     );
 
+    // Fetch the created proposal
+    const proposalId = 0; // Assuming this is the first proposal
+    const proposal = await votingSystem.getProposal(proposalId);
+
     // Check that the proposal details are correct
     assert.equal(proposal.title, title, "Proposal title should match");
     assert.equal(proposal.objectives, objectives, "Objectives should match");
@@ -44,5 +48,30 @@ contract("VotingSystem", (accounts) => {
     assert.equal(proposal.implementationPlan, implementationPlan, "Implementation plan should match");
     assert.equal(proposal.budget, budget, "Budget should match");
     assert.equal(proposal.proposer, unitProposer, "Proposer address should match");
+  });
+
+  it("should allow a registered voter to cast a vote", async () => {
+    // Voter 1 already registered, proposal already created
+    const proposalId = 0;
+    const voterAddress = voter1; 
+
+    // Cast the vote
+    await votingSystem.vote(proposalId, true, { from: voterAddress });
+    const proposal = await votingSystem.proposals(proposalId);
+
+    // Check that the vote count has increased
+    assert.equal(proposal.votesFor.toString(), '1', "Vote count should be 1 after voting");
+  });
+
+  it("should not allow a unit to vote more than once on the same proposal", async () => {
+    const proposalId = 0;
+    const voterAddress = voter1; 
+
+    try {
+        await votingSystem.vote(proposalId, true, { from: voterAddress });
+        assert.fail("Expected an error but did not get one");
+    } catch (error) {
+        assert(error.message.includes("Unit already voted on this proposal"), "Expected 'Unit already voted on this proposal' error but got: " + error.message);
+    }
   });
 });
