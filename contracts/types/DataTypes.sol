@@ -14,4 +14,28 @@ library DataTypes {
         uint256 bookingQuota;
         uint256 lastPayment;
     }
+
+    // Proposal related types
+    enum ProposalStatus {
+        Submitted,
+        Pending,
+        Rejected,
+        Approved,
+        WorkInProgress,
+        Completed,
+        Closed
+    }
+
+    struct Proposal {
+        address proposer;
+        string title;
+        string objectives;
+        string background;
+        string implementationPlan;
+        string budget;
+        uint256 dateCreated;
+        uint256 votesFor;
+        uint256 votesAgainst;
+        ProposalStatus status;
+    }
 }

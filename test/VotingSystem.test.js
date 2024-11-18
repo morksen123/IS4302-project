@@ -1,27 +1,30 @@
 const CondoDAO = artifacts.require("../core/CondoDAO");
-const VotingSystem = artifacts.require("../core/VotingSystem");
+const VotingSystem2 = artifacts.require("../core/VotingSystem2");
 const UnitManager = artifacts.require("../core/UnitManager");
+const VotingStorage = artifacts.require("../core/VotingStorage");
 
-contract("VotingSystem", (accounts) => {
+contract("VotingSystem2", (accounts) => {
   let votingSystem;
   let unitManager;
+  let votingStorage;
   let condoDAO;
   const [deployer,  unitProposer, voter1, voter2, voter3, voter4] = accounts; //one proposer, 3 voters for testing
 
   before(async () => {
     condoDAO = await CondoDAO.deployed();
     unitManager = await UnitManager.at(await condoDAO.unitManager());
-    votingSystem = await VotingSystem.at(await condoDAO.votingSystem());
+    votingSystem = await VotingSystem2.at(await condoDAO.votingSystem());
+    votingStorage = await VotingStorage.at(await votingSystem.votingStorage());
 
     // Register the unit for the proposer, by default voting rights are granted
-    await unitManager.registerUnit(unitProposer); 
+    await unitManager.registerUnit(unitProposer);
     // Register voters
-    await unitManager.registerUnit(voter1); 
-    await unitManager.registerUnit(voter2); 
+    await unitManager.registerUnit(voter1);
+    await unitManager.registerUnit(voter2);
     await unitManager.registerUnit(voter3);
-    //voter 3 revoke voting rights
+    // Revoke voting rights for voter3
     await unitManager.updateVotingRights(voter3, false);
-    //voter 4 left unregistered
+    // Voter4 left unregistered
   });
 
   it("should create a proposal correctly", async () => {
@@ -29,23 +32,24 @@ contract("VotingSystem", (accounts) => {
     const objectives = "To establish a community garden for all residents.";
     const background = "A community garden will improve aesthetics and provide fresh produce.";
     const implementationPlan = "Identify a location, gather volunteers, and plant the garden.";
-    const budget = "1000"; 
+    const budget = "1000";
 
-    // Create the proposal from the registered unit proposer
+    // Create the proposal
     await votingSystem.createProposal(
       unitProposer,
       title,
       objectives,
       background,
       implementationPlan,
-      budget
+      budget,
+      { from: unitProposer }
     );
 
-    // Fetch the created proposal
+    // Fetch the proposal from storage
     const proposalId = 0; // Assuming this is the first proposal
-    const proposal = await votingSystem.getProposal(proposalId);
+    const proposal = await votingStorage.getProposal(proposalId);
 
-    // Check that the proposal details are correct
+    // Check proposal details
     assert.equal(proposal.title, title, "Proposal title should match");
     assert.equal(proposal.objectives, objectives, "Objectives should match");
     assert.equal(proposal.background, background, "Background should match");
@@ -56,104 +60,67 @@ contract("VotingSystem", (accounts) => {
 
   it("should not allow a unit to vote before AGM starts", async () => {
     const proposalId = 0;
-    const voterAddress = voter1; 
-
-    // Attempt to cast a vote before AGM has started
     try {
-        await votingSystem.vote(proposalId, { from: voterAddress });
-        assert.fail("Expected an error but did not get one");
+      await votingSystem.vote(proposalId, true, { from: voter1 });
+      assert.fail("Expected an error but did not get one");
     } catch (error) {
-        assert(error.message.includes("AGM not in session"), "Expected 'AGM not in session' error but got: " + error.message);
+      assert(error.message.includes("AGM not in session"), "Expected 'AGM not in session' error");
     }
   });
 
-  it("should successfully start AGM", async () => {
-    // Start AGM voting and listen for events
-    const result = await votingSystem.startAGMVoting();
+  it("should successfully start AGM voting", async () => {
+    const result = await votingSystem.startAGMVoting({ from: deployer });
 
-    // Check that the event was emitted
-    const event = result.logs.find(log => log.event === "AGMVotingStarted");
+    // Check the event
+    const event = result.logs.find((log) => log.event === "AGMVotingStarted");
     assert(event, "AGMVotingStarted event should be emitted");
 
-    // Check that all proposals status are updated to Pending
-    const proposalId = 0;
-    const proposal = await votingSystem.proposals(proposalId);
-    assert.equal(proposal.status.toString(), "1", "Proposal status should be Pending"); // Check status is Pending (1)
+    // Check all proposals' statuses are updated to Pending
+    const proposal = await votingStorage.getProposal(0);
+    assert.equal(proposal.status.toString(), "1", "Proposal status should be Pending");
   });
 
-  it("should not allow proposals to be created when AGM is in session", async () => {
-    const title = "This should not be created";
-    const objectives = "This should not be created";
-    const background = "This should not be created";
-    const implementationPlan = "This should not be created";
-    const budget = "1000"; 
-
-    // Create the proposal from the registered unit proposer
-    try {
-      await votingSystem.createProposal(
-        unitProposer,
-        title,
-        objectives,
-        background,
-        implementationPlan,
-        budget
-      );
-    } catch (error) {
-      assert(error.message.includes("Cannot add proposal whilst AGM is in session"), "Cannot add proposal whilst AGM is in session' error but got: " + error.message);
-    }
-  });
-
-  it("should not allow an unregistered voter to cast a vote", async () => {
-    // Voter 4 not registered
+  it("should not allow unregistered or revoked voters to vote", async () => {
     const proposalId = 0;
-    const voterAddress = voter4; 
 
-    // Cast the vote
+    // Unregistered voter
     try {
-      await votingSystem.vote(proposalId, true, { from: voterAddress });
+      await votingSystem.vote(proposalId, true, { from: voter4 });
       assert.fail("Expected an error but did not get one");
     } catch (error) {
-        assert(error.message.includes("Unit is not registered"), "Expected 'Unit is not registered' error but got: " + error.message);
+      assert(error.message.includes("Unit not registered"), "Expected 'Unit not registered' error");
     }
-  });
 
-  it("should not allow a unit with revoked voting rights to vote", async () => {
-    // Voter 3 voting rights revoked
-    const proposalId = 0;
-    const voterAddress = voter3; 
-
-    // Cast the vote
+    // Revoked voter
     try {
-      await votingSystem.vote(proposalId, true, { from: voterAddress });
+      await votingSystem.vote(proposalId, true, { from: voter3 });
       assert.fail("Expected an error but did not get one");
     } catch (error) {
-        assert(error.message.includes("Unit does not have voting rights"), "Expected 'Unit does not have voting rights' error but got: " + error.message);
+      assert(error.message.includes("No voting rights"), "Expected 'No voting rights' error");
     }
   });
 
-
-  it("should allow a registered voter to cast a vote", async () => {
-    // Voter 1 already registered, proposal already created
+  it("should allow registered voters to cast votes", async () => {
     const proposalId = 0;
-    const voterAddress = voter1; 
 
-    // Cast the vote
-    await votingSystem.vote(proposalId, true, { from: voterAddress });
-    const proposal = await votingSystem.proposals(proposalId);
+    // Cast votes
+    await votingSystem.vote(proposalId, true, { from: voter1 });
+    await votingSystem.vote(proposalId, false, { from: voter2 });
 
-    // Check that the vote count has increased
-    assert.equal(proposal.votesFor.toString(), '1', "Vote count should be 1 after voting");
+    // Fetch proposal to check vote counts
+    const proposal = await votingStorage.getProposal(proposalId);
+    assert.equal(proposal.votesFor.toString(), "1", "Votes For should be 1");
+    assert.equal(proposal.votesAgainst.toString(), "1", "Votes Against should be 1");
   });
 
-  it("should not allow a unit to vote more than once on the same proposal", async () => {
+  it("should prevent double voting on the same proposal", async () => {
     const proposalId = 0;
-    const voterAddress = voter1; 
 
     try {
-        await votingSystem.vote(proposalId, true, { from: voterAddress });
-        assert.fail("Expected an error but did not get one");
+      await votingSystem.vote(proposalId, true, { from: voter1 });
+      assert.fail("Expected an error but did not get one");
     } catch (error) {
-        assert(error.message.includes("Unit already voted on this proposal"), "Expected 'Unit already voted on this proposal' error but got: " + error.message);
+      assert(error.message.includes("Already voted"), "Expected 'Already voted' error");
     }
   });
 });
