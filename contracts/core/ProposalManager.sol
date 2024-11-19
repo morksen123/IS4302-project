@@ -26,7 +26,7 @@ contract ProposalManager is IProposalManager {
             description: description,
             suggestedBudget: suggestedBudget,
             proposedSolution: proposedSolution,
-            status: DataTypes.ProposalStatus.Draft,
+            status: DataTypes.ProposalStatus.Submitted,
             createdAt: block.timestamp
         });
         

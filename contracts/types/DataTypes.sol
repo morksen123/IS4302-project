@@ -4,7 +4,7 @@ pragma solidity >=0.5.0 <0.9.0;
 library DataTypes {
     // Constants need to be declared at the library level
     uint256 public constant DEFAULT_BOOKING_QUOTA = 10;
-    enum ProposalStatus { Draft, OpenForVoting, Approved, Rejected }
+    enum ProposalStatus { Submitted, VotingOpen, VotingClosed, Accepted, Rejected }
     enum FeedbackStatus { Open, Resolved }
 
 
@@ -23,16 +23,19 @@ library DataTypes {
         address unitAddress;
         string title;
         string description;
-        uint256 suggestedBudget;
         string proposedSolution;
+        uint256 suggestedBudget;
         ProposalStatus status;
         uint256 createdAt;
+        // uint256 votesFor; 
+        // uint256 votesAgainst;
+        // uint256 votesAbstained;
     }
 
     struct Feedback {
         address unitAddress;
         string feedbackText;
-        FeedbackStatus status;
+       //  FeedbackStatus status;
         uint256 createdAt;
     }
 }

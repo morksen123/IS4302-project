@@ -20,13 +20,22 @@ contract FeedbackStorage is DataStorageBase  {
     }
 
     // Update the status of feedback by its ID
-    function updateFeedbackStatus(uint256 feedbackId, DataTypes.FeedbackStatus newStatus) external {
-        require(feedbackId < feedbacks.length, "Invalid feedback ID");
-        feedbacks[feedbackId].status = newStatus;
-    }
+    // function updateFeedbackStatus(uint256 feedbackId, DataTypes.FeedbackStatus newStatus) external {
+    //     require(feedbackId < feedbacks.length, "Invalid feedback ID");
+    //     feedbacks[feedbackId].status = newStatus;
+    //  }
 
     // Get the total count of feedbacks
     function getFeedbackCount() external view returns (uint256) {
         return feedbacks.length;
+        
+    }
+
+   /// @notice Retrieves all feedback stored in the contract
+    /// @return Array of all feedbacks
+    function getAllFeedback() external view returns (DataTypes.Feedback[] memory) {
+        return feedbacks;
     }
 }
+
+  

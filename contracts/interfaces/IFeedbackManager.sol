@@ -3,10 +3,12 @@ pragma solidity >=0.5.0 <0.9.0;
 import "../types/DataTypes.sol";
 
 interface IFeedbackManager {
-    event FeedbackRaised(uint256 indexed feedbackId, address indexed unitAddress, string feedbackText);
-    event FeedbackStatusUpdated(uint256 indexed feedbackId, DataTypes.FeedbackStatus newStatus);
+    event FeedbackSubmitted(uint256 indexed feedbackId, address indexed unitAddress, string feedbackText);
 
-    function raiseFeedback(string calldata feedbackText) external;
-    function updateFeedbackStatus(uint256 feedbackId, DataTypes.FeedbackStatus newStatus) external;
-    function getFeedback(uint256 feedbackId) external view returns (DataTypes.Feedback memory);
+    function submitFeedback(string calldata feedbackText) external;
+
+    function getFeedback(uint256 feedbackId) external view returns (address unitAddress, string memory feedbackText, uint256 createdAt);
+
+    function getAllFeedback() external view returns (address[] memory unitAddresses, string[] memory feedbackTexts, uint256[] memory createdAts);
 }
+
