@@ -26,10 +26,11 @@ library DataTypes {
         string proposedSolution;
         uint256 suggestedBudget;
         ProposalStatus status;
+        uint256[] voteIds;
         uint256 createdAt;
-        // uint256 votesFor; 
-        // uint256 votesAgainst;
-        // uint256 votesAbstained;
+        uint256 votesFor; 
+        uint256 votesAgainst;
+        uint256 votesAbstained;
     }
 
     struct Feedback {

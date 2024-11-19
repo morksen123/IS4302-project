@@ -19,6 +19,9 @@ interface IProposalManager {
 
     function getProposal(uint256 proposalId) external view returns (DataTypes.Proposal memory);
 
+    function getProposalsByUnit(address unitAddress) external view returns (DataTypes.Proposal[] memory);
+
+
     function getAllProposals() external view returns (DataTypes.Proposal[] memory);
 
     function getVotesFor(uint256 proposalId) external view returns (uint256);
@@ -26,5 +29,16 @@ interface IProposalManager {
     function getVotesAgainst(uint256 proposalId) external view returns (uint256);
 
     function getVotesAbstained(uint256 proposalId) external view returns (uint256);
+
+     function incrementVotes(
+        uint256 proposalId,
+        uint256 votesFor,
+        uint256 votesAgainst,
+        uint256 votesAbstained
+    ) external;
+
+    function setVotingContract(address votingContract) external;
+
+    function getVoteIdsForProposal(uint256 proposalId) external view returns (uint256[] memory);
 
 }
