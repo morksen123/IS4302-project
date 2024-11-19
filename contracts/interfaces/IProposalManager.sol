@@ -15,5 +15,16 @@ interface IProposalManager {
 
     function updateProposalStatus(uint256 proposalId, DataTypes.ProposalStatus newStatus) external;
 
+    function getProposalByStatus(DataTypes.ProposalStatus status) external view returns (DataTypes.Proposal[] memory);
+
     function getProposal(uint256 proposalId) external view returns (DataTypes.Proposal memory);
+
+    function getAllProposals() external view returns (DataTypes.Proposal[] memory);
+
+    function getVotesFor(uint256 proposalId) external view returns (uint256);
+    
+    function getVotesAgainst(uint256 proposalId) external view returns (uint256);
+
+    function getVotesAbstained(uint256 proposalId) external view returns (uint256);
+
 }
