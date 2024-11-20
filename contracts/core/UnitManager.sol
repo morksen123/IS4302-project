@@ -17,7 +17,7 @@ contract UnitManager is IUnitManager {
     MockPropertyOracle private propertyOracle;
 
     // Constants for fee calculations
-    uint256 private constant MANAGEMENT_FEE = 100 ether; // Base fee: 100 ETH
+    uint256 private constant MANAGEMENT_FEE = 0.1 ether; // Base fee: 0.1 ETH
     uint256 private constant LATE_FEE_PERCENTAGE = 5; // Late fee: 5%
     uint256 private constant PAYMENT_PERIOD = 30 days; // Grace period
     uint256 private constant AGM_DISCOUNT_PERCENTAGE = 5; // AGM discount: 5%
@@ -32,7 +32,6 @@ contract UnitManager is IUnitManager {
         _;
     }
 
-    // === USE CASE 3.1: UNIT REGISTRATION ===
     /**
      * @notice Registers a new unit with property ownership verification
      * @param unitAddress Address of the unit owner
@@ -54,7 +53,6 @@ contract UnitManager is IUnitManager {
         emit UnitRegistered(unitAddress);
     }
 
-    // === USE CASE 3.2: MANAGEMENT FEE CALCULATION ===
     /**
      * @notice Calculates management fee with potential AGM discount
      * @param unitAddress Address of the unit
@@ -68,7 +66,6 @@ contract UnitManager is IUnitManager {
         return MANAGEMENT_FEE;
     }
 
-    // === USE CASE 3.3: LATE FEE CALCULATION ===
     /**
      * @notice Calculates late fees based on payment delay
      * @param unitAddress Address of the unit
@@ -87,7 +84,6 @@ contract UnitManager is IUnitManager {
         return (baseFee * LATE_FEE_PERCENTAGE * overduePeriods) / 100;
     }
 
-    // === USE CASE 3.4: FEE PAYMENTS ===
     /**
      * @notice Processes management fee payment with late fees
      */
@@ -110,7 +106,6 @@ contract UnitManager is IUnitManager {
         }
     }
 
-    // === USE CASE 3.5 & 3.6: VOTING RIGHTS MANAGEMENT ===
     /**
      * @notice Updates voting rights status for a unit
      * @param unitAddress Address of the unit
@@ -124,7 +119,6 @@ contract UnitManager is IUnitManager {
         emit VotingRightsUpdated(unitAddress, status);
     }
 
-    // === USE CASE 3.7, 3.8, 3.9: BOOKING QUOTA MANAGEMENT ===
     /**
      * @notice Updates facility booking quota
      * @param unitAddress Address of the unit
