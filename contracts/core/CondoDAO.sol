@@ -5,15 +5,16 @@ import "../core/UnitManager.sol";
 import "../core/TreasuryManager.sol";
 import "../core/VotingSystem.sol";
 
-
 import "../storage/UnitStorage.sol";
 import "../storage/TreasuryStorage.sol";
+import "../oracles/MockPropertyOracle.sol";
 
 contract CondoDAO {
     // interfaces
     UnitManager public unitManager;
     TreasuryManager public treasuryManager;
     VotingSystem public votingSystem;
+    MockPropertyOracle public mockPropertyOracle;
 
     // data
     UnitStorage private unitStorage;
@@ -25,7 +26,10 @@ contract CondoDAO {
         treasuryStorage = new TreasuryStorage();
 
         // initialize interface contracts
-        unitManager = new UnitManager(address(unitStorage));
+        unitManager = new UnitManager(
+            address(unitStorage),
+            address(mockPropertyOracle) // Pass oracle address to UnitManager
+        );
         treasuryManager = new TreasuryManager(address(treasuryStorage), address(unitManager));
         votingSystem = new VotingSystem(address(unitManager));
 
