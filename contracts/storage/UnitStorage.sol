@@ -46,4 +46,11 @@ contract UnitStorage is DataStorageBase {
     function updateBookingQuota(address unitAddress, uint256 newQuota) external onlyAuthorized {
         units[unitAddress].bookingQuota = newQuota;
     }
+
+    function updateAGMParticipation(
+        address unitAddress,
+        bool participated
+    ) external onlyAuthorized {
+        units[unitAddress].agmParticipation = participated;
+    }
 }
