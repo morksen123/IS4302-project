@@ -6,128 +6,160 @@ contract("VotingSystem", (accounts) => {
     let votingSystem;
     let unitManager;
     let condoDAO;
-    const [deployer, unitProposer, voter1, voter2, voter3, voter4] = accounts; // One proposer, 3 voters for testing
+    const [deployer, unitProposer, voter1, voter2, voter3, voter4] = accounts;
 
     before(async () => {
         condoDAO = await CondoDAO.deployed();
         unitManager = await UnitManager.at(await condoDAO.unitManager());
         votingSystem = await VotingSystem.at(await condoDAO.votingSystem());
 
-        // Register the unit for the proposer; by default, voting rights are granted
+        // Register proposer and voters
         await unitManager.registerUnit(unitProposer);
-        // Register voters
         await unitManager.registerUnit(voter1);
         await unitManager.registerUnit(voter2);
         await unitManager.registerUnit(voter3);
-        // Voter 3 revoke voting rights
+        // Revoke voting rights for voter3
         await unitManager.updateVotingRights(voter3, false);
-        // Voter 4 left unregistered
+        // Leave voter4 unregistered
     });
 
-    it("should create a proposal correctly", async () => {
-        const title = "Community Garden Proposal";
-        const description = "To establish a community garden for all residents.";
-        const solution = "Identify a location, gather volunteers, and plant the garden.";
-        const budget = "1000";
+    describe("Proposal Lifecycle", () => {
+        it("should create a proposal correctly", async () => {
+            const title = "Community Garden Proposal";
+            const description = "To establish a community garden for all residents.";
+            const solution = "Identify a location, gather volunteers, and plant the garden.";
+            const budget = "1000";
 
-        // Create the proposal from the registered unit proposer
-        await votingSystem.createProposal(
-            unitProposer,
-            title,
-            description,
-            solution,
-            budget,
-            { from: unitProposer }
-        );
+            await votingSystem.createProposal(title, description, solution, budget, { from: unitProposer });
+            const proposal = await votingSystem.proposals(0);
 
-        // Fetch the created proposal
-        const proposalId = 0; // Assuming this is the first proposal
-        const proposal = await votingSystem.proposals(proposalId);
+            assert.equal(proposal.title, title, "Proposal title should match");
+            assert.equal(proposal.description, description, "Proposal description should match");
+            assert.equal(proposal.solution, solution, "Proposed solution should match");
+            assert.equal(proposal.budget.toString(), budget, "Budget should match");
+            assert.equal(proposal.proposer, unitProposer, "Proposer address should match");
+        });
 
-        // Check that the proposal details are correct
-        assert.equal(proposal.title, title, "Proposal title should match");
-        assert.equal(proposal.description, description, "Description should match");
-        assert.equal(proposal.proposedSolution, solution, "Proposed solution should match");
-        assert.equal(proposal.suggestedBudget.toString(), budget, "Budget should match");
-        assert.equal(proposal.unitAddress, unitProposer, "Proposer address should match");
+        it("should restrict starting voting to the proposer", async () => {
+            const proposalId = 0;
+
+            try {
+                await votingSystem.startVoting(proposalId, { from: voter1 });
+                assert.fail("Expected an error but did not get one");
+            } catch (error) {
+                assert(error.message.includes("Only the proposer"), "Expected 'Only the proposer' error");
+            }
+        });
+
+        it("should allow the proposer to start voting", async () => {
+            const proposalId = 0;
+
+            await votingSystem.startVoting(proposalId, { from: unitProposer });
+            const proposal = await votingSystem.proposals(proposalId);
+
+            assert.equal(proposal.status.toString(), "1", "Proposal status should be VotingOpen");
+        });
     });
 
-    it("should not allow a unit to commit a vote before AGM starts", async () => {
-        const proposalId = 0;
-        const commitHash = web3.utils.keccak256("secretVote");
-
-        try {
-            await votingSystem.commitVote(proposalId, commitHash, { from: voter1 });
-            assert.fail("Expected an error but did not get one");
-        } catch (error) {
-            assert(error.message.includes("AGM not in session"), "Expected 'AGM not in session' error but got: " + error.message);
-        }
-    });
-
-    it("should successfully start AGM", async () => {
-        await votingSystem.startAGMVoting({ from: deployer });
-
-        const proposalId = 0;
-        const proposal = await votingSystem.proposals(proposalId);
-        assert.equal(proposal.status.toString(), "1", "Proposal status should be VotingOpen");
-    });
-
-    it("should allow a registered voter to commit a vote", async () => {
-        const proposalId = 0;
-        const commitHash = web3.utils.keccak256(web3.utils.encodePacked("secret1", voter1));
-
-        await votingSystem.commitVote(proposalId, commitHash, { from: voter1 });
-        const vote = await votingSystem.votes(proposalId, voter1);
-
-        assert.equal(vote.commitHash, commitHash, "Commit hash should match");
-        assert.equal(vote.revealed, false, "Vote should not be revealed yet");
-    });
-
-    it("should not allow an unregistered voter to commit a vote", async () => {
-        const proposalId = 0;
-        const commitHash = web3.utils.keccak256(web3.utils.encodePacked("secret4", voter4));
-
-        try {
-            await votingSystem.commitVote(proposalId, commitHash, { from: voter4 });
-            assert.fail("Expected an error but did not get one");
-        } catch (error) {
-            assert(error.message.includes("Unit not registered"), "Expected 'Unit not registered' error but got: " + error.message);
-        }
-    });
-
-    it("should not allow a unit with revoked voting rights to commit a vote", async () => {
-        const proposalId = 0;
-        const commitHash = web3.utils.keccak256(web3.utils.encodePacked("secret3", voter3));
-
-        try {
-            await votingSystem.commitVote(proposalId, commitHash, { from: voter3 });
-            assert.fail("Expected an error but did not get one");
-        } catch (error) {
-            assert(error.message.includes("Unit does not have voting rights"), "Expected 'Unit does not have voting rights' error but got: " + error.message);
-        }
-    });
-
-    it("should close AGM and reveal votes", async () => {
-        const secrets = ["secret1"];
-        await votingSystem.closeAGM(secrets, { from: deployer });
-
-        const proposalId = 0;
-        const proposal = await votingSystem.proposals(proposalId);
-
-        assert.equal(proposal.status.toString(), "2", "Proposal status should be VotingClosed");
-        assert.equal(proposal.votesFor.toString(), "1", "Votes for should be 1");
-        assert.equal(proposal.votesAgainst.toString(), "0", "Votes against should be 0");
-    });
-
-    it("should not allow committing votes after AGM is closed", async () => {
-        const proposalId = 0;
-        const commitHash = web3.utils.keccak256(web3.utils.encodePacked("secret2", voter2));
-
-        try {
-            await votingSystem.commitVote(proposalId, commitHash, { from: voter2 });
-            assert.fail("Expected an error but did not get one");
-        } catch (error) {
-            assert(error.message.includes("AGM not in session"), "Expected 'AGM not in session' error but got: " + error.message);
-        }
-    });
+    describe("Vote Commitment", () => {
+      it("should allow a registered voter to commit a vote", async () => {
+          const proposalId = 0;
+          const secret = "secret1";
+          const voteChoice = 1; // Voting "For"
+          const commitHash = web3.utils.keccak256(web3.utils.encodePacked(voteChoice, secret));
+  
+          await votingSystem.commitVote(proposalId, commitHash, { from: voter1 });
+          const commit = await votingSystem.userCommits(voter1, proposalId);
+  
+          assert.equal(commit.status, "1", "Vote should be marked as committed");
+      });
+  
+      it("should reject commit votes from unregistered units", async () => {
+          const proposalId = 0;
+  
+          try {
+              const commitHash = web3.utils.keccak256(web3.utils.encodePacked(2, "secret4"));
+              await votingSystem.commitVote(proposalId, commitHash, { from: voter4 });
+              assert.fail("Expected an error but did not get one");
+          } catch (error) {
+              assert(error.message.includes("Unit not registered"), "Expected 'Unit not registered' error");
+          }
+      });
+  
+      it("should reject commit votes from units with revoked voting rights", async () => {
+          const proposalId = 0;
+  
+          try {
+              const commitHash = web3.utils.keccak256(web3.utils.encodePacked(2, "secret3"));
+              await votingSystem.commitVote(proposalId, commitHash, { from: voter3 });
+              assert.fail("Expected an error but did not get one");
+          } catch (error) {
+              assert(error.message.includes("Unit does not have voting rights"), "Expected 'Unit does not have voting rights' error");
+          }
+      });
+  });
+  
+  describe("Vote Reveal", () => {
+      it("should allow a voter to reveal their vote", async () => {
+          const proposalId = 0;
+          const secret = "secret1";
+          const voteChoice = 1; // Voting "For"
+          
+          // Commit the vote first
+          const commitHash = web3.utils.keccak256(web3.utils.encodePacked(voteChoice, secret));
+          // await votingSystem.commitVote(proposalId, commitHash, { from: voter1 });
+  
+          // Now reveal the vote with the same secret and choice
+          await votingSystem.revealVote(proposalId, voteChoice, secret, { from: voter1 });
+  
+          const proposal = await votingSystem.proposals(proposalId);
+          const commit = await votingSystem.userCommits(voter1, proposalId);
+  
+          assert.equal(proposal.votesFor.toString(), "1", "Votes for should be incremented");
+          assert.equal(commit.status, "2", "Vote should be marked as revealed");
+      });
+  
+      it("should reject revealing invalid votes", async () => {
+          const proposalId = 0;
+          const secret = "secret2";
+          const voteChoice = 2; // Voting "For"
+          const commitHash = web3.utils.keccak256(web3.utils.encodePacked(voteChoice, secret));
+  
+          await votingSystem.commitVote(proposalId, commitHash, { from: voter2 });
+  
+          const invalidSecret = "wrongSecret"; // A different secret than what was committed
+          const invalidVoteChoice = 2; // Voting "Against" (or any invalid choice)
+  
+          try {
+              await votingSystem.revealVote(proposalId, invalidVoteChoice, invalidSecret, { from: voter2 });
+              assert.fail("Expected 'Hash mismatch' error but did not get one");
+          } catch (error) {
+              assert(error.message.includes("Hash mismatch"), "Expected 'Hash mismatch' error");
+          }
+      });
+  });
+  
+  describe("Close Voting", () => {
+      it("should allow the proposer to close voting and tally votes", async () => {
+          const proposalId = 0;
+  
+          await votingSystem.closeVoting(proposalId, { from: unitProposer });
+  
+          const proposal = await votingSystem.proposals(proposalId);
+          assert.equal(proposal.status.toString(), "2", "Proposal status should be VotingClosed");
+      });
+  
+      it("should reject committing votes after voting is closed", async () => {
+          const proposalId = 0;
+  
+          try {
+              const commitHash = web3.utils.keccak256(web3.utils.encodePacked("A", "secret2"));
+              await votingSystem.commitVote(proposalId, commitHash, { from: voter2 });
+              assert.fail("Expected an error but did not get one");
+          } catch (error) {
+              assert(error.message.includes("Voting is not open"), "Expected 'Voting is not open' error");
+          }
+      });
+  });
+  
 });
