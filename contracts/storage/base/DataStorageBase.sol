@@ -5,7 +5,7 @@ contract DataStorageBase {
     address private ownerContract;
     mapping(address => bool) private authorizedContracts;
 
-    constructor() public {
+    constructor() {
         ownerContract = msg.sender;
     }
 

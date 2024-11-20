@@ -5,7 +5,7 @@ contract MockPropertyOracle {
     mapping(address => bool) private propertyRecords;
     address private admin;
 
-    constructor() public {
+    constructor() {
         admin = msg.sender;
     }
 

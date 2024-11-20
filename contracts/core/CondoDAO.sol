@@ -24,7 +24,7 @@ contract CondoDAO {
     TreasuryStorage private treasuryStorage;
     FacilityStorage private facilityStorage;
 
-    constructor() public {
+    constructor() {
         // initialize data storage
         unitStorage = new UnitStorage();
         treasuryStorage = new TreasuryStorage();

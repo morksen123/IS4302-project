@@ -22,7 +22,7 @@ contract UnitManager is IUnitManager {
     uint256 private constant PAYMENT_PERIOD = 30 days; // Grace period
     uint256 private constant AGM_DISCOUNT_PERCENTAGE = 5; // AGM discount: 5%
 
-    constructor(address storageAddress, address oracleAddress) public {
+    constructor(address storageAddress, address oracleAddress) {
         unitStorage = UnitStorage(storageAddress);
         propertyOracle = MockPropertyOracle(oracleAddress);
     }

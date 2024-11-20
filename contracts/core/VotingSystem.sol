@@ -29,7 +29,7 @@ contract VotingSystem {
     // Track if AGM has started
     bool AGMStarted = false;
 
-    constructor(address _unitManager) public {
+    constructor(address _unitManager) {
         unitManager = IUnitManager(_unitManager); // Set the UnitManager reference
     }
 
