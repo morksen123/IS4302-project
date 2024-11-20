@@ -8,6 +8,7 @@ import "../core/VotingSystem.sol";
 
 import "../storage/UnitStorage.sol";
 import "../storage/TreasuryStorage.sol";
+import "../storage/VotingStorage.sol";
 
 contract CondoDAO {
     // interfaces
@@ -18,16 +19,18 @@ contract CondoDAO {
     // data
     UnitStorage private unitStorage;
     TreasuryStorage private treasuryStorage;
+    VotingStorage private votingStorage;
 
     constructor() public {
         // initialize data storage
         unitStorage = new UnitStorage();
         treasuryStorage = new TreasuryStorage();
+        votingStorage = new VotingStorage();
 
         // initialize interface contracts
         unitManager = new UnitManager(address(unitStorage));
         treasuryManager = new TreasuryManager(address(treasuryStorage), address(unitManager));
-        votingSystem = new VotingSystem(address(unitManager));
+        votingSystem = new VotingSystem(address(votingStorage),address(unitManager));
 
         // Set authorization for storage contracts
         unitStorage.addAuthorizedContract(address(unitManager));
