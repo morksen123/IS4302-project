@@ -2,9 +2,6 @@
 pragma solidity >=0.5.0 <0.9.0;
 
 library DataTypes {
-    // Constants need to be declared at the library level
-    uint256 public constant DEFAULT_BOOKING_QUOTA = 10;
-
     // Unit-related types
     struct Unit {
         bool registered;
@@ -13,5 +10,8 @@ library DataTypes {
         bool votingRights;
         uint256 bookingQuota;
         uint256 lastPayment;
+        bool agmParticipation;
     }
+
+    uint256 constant DEFAULT_BOOKING_QUOTA = 5;
 }
