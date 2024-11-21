@@ -31,6 +31,7 @@ library DataTypes {
         uint256 votesFor; 
         uint256 votesAgainst;
         uint256 votesAbstained;
+        uint256 totalVotes;
     }
 
     struct Feedback {
