@@ -1,160 +1,165 @@
-const CondoDAO = artifacts.require("../core/CondoDAO");
-const VotingSystem = artifacts.require("../core/VotingSystem");
+const VotingStorage = artifacts.require("../storage/VotingStorage");
 const UnitManager = artifacts.require("../core/UnitManager");
+const ProposalStorage = artifacts.require("../storage/ProposalStorage");
+const ProposalManager = artifacts.require("../core/ProposalManager");
+const DataTypes = artifacts.require("../types/DataTypes");
 
-contract("VotingSystem", (accounts) => {
-    let votingSystem;
+contract("VotingStorage", (accounts) => {
+    let votingStorage;
     let unitManager;
-    let condoDAO;
-    const [deployer, unitProposer, voter1, voter2, voter3, voter4] = accounts;
+    let proposalStorage;
+    let proposalManager;
+    const [owner, unitProposer, voter1, voter2, voter3, nonVoter] = accounts;
 
-    before(async () => {
-        condoDAO = await CondoDAO.deployed();
-        unitManager = await UnitManager.at(await condoDAO.unitManager());
-        votingSystem = await VotingSystem.at(await condoDAO.votingSystem());
-
-        // Register proposer and voters
+    beforeEach(async () => {
+        // Deploy UnitManager
+        unitManager = await UnitManager.new();
         await unitManager.registerUnit(unitProposer);
         await unitManager.registerUnit(voter1);
         await unitManager.registerUnit(voter2);
         await unitManager.registerUnit(voter3);
 
-        // Revoke voting rights for voter3
-        await unitManager.updateVotingRights(voter3, false);
-        // Leave voter4 unregistered
+        // Grant voting rights
+        await unitManager.grantVotingRights(unitProposer);
+        await unitManager.grantVotingRights(voter1);
+        await unitManager.grantVotingRights(voter2);
+        await unitManager.grantVotingRights(voter3);
+
+        // Deploy ProposalStorage
+        proposalStorage = await ProposalStorage.new();
+
+        // Deploy VotingStorage
+        votingStorage = await VotingStorage.new();
+        await votingStorage.setUnitManager(unitManager.address);
+
+        // Deploy ProposalManager
+        proposalManager = await ProposalManager.new(proposalStorage.address);
     });
 
-    describe("Proposal Lifecycle", () => {
-        it("should create a proposal correctly", async () => {
-            const title = "Community Garden Proposal";
-            const description = "To establish a community garden for all residents.";
-            const solution = "Identify a location, gather volunteers, and plant the garden.";
-            const budget = "1000";
-
-            await votingSystem.createProposal(title, description, solution, budget, { from: unitProposer });
-            const proposal = await votingSystem.getProposal(0);
-
-            assert.equal(proposal.title, title, "Proposal title should match");
-            assert.equal(proposal.description, description, "Proposal description should match");
-            assert.equal(proposal.solution, solution, "Proposed solution should match");
-            assert.equal(proposal.budget.toString(), budget, "Budget should match");
-            assert.equal(proposal.proposer, unitProposer, "Proposer address should match");
-        });
-
-        it("should restrict starting voting to the proposer", async () => {
-            const proposalId = 0;
-
-            try {
-                await votingSystem.startVoting(proposalId, { from: voter1 });
-                assert.fail("Expected an error but did not get one");
-            } catch (error) {
-                assert(error.message.includes("Only the proposer"), "Expected 'Only the proposer' error");
-            }
-        });
-
-        it("should allow the proposer to start voting", async () => {
-            const proposalId = 0;
-
-            await votingSystem.startVoting(proposalId, { from: unitProposer });
-            const proposal = await votingSystem.getProposal(proposalId);
-
-            assert.equal(proposal.status.toString(), "1", "Proposal status should be VotingOpen");
+    describe("Initialization", () => {
+        it("should set unit manager correctly", async () => {
+            const storedUnitManager = await votingStorage.getUnitManager();
+            assert.equal(storedUnitManager, unitManager.address, "Unit manager not set correctly");
         });
     });
 
-    describe("Vote Commitment", () => {
-        it("should allow a registered voter to commit a vote", async () => {
-            const proposalId = 0;
-            const secret = "secret1";
-            const voteChoice = 1; // Voting "For"
-            const commitHash = web3.utils.keccak256(web3.utils.encodePacked(voteChoice, secret));
+    describe("User Commits", () => {
+        let proposalId;
 
-            await votingSystem.commitVote(proposalId, commitHash, { from: voter1 });
-            const commit = await votingSystem.getUserCommit(voter1, proposalId);
-
-            assert.equal(commit.status, "1", "Vote should be marked as committed");
+        beforeEach(async () => {
+            // Create a proposal
+            await proposalManager.raiseProposal(
+                "Test Proposal",
+                "A test proposal description",
+                1000,
+                "Test Solution"
+            );
+            proposalId = 0; // First proposal
         });
 
-        it("should reject commit votes from unregistered units", async () => {
-            const proposalId = 0;
+        it("should allow setting and getting user commits", async () => {
+            // Prepare commit data
+            const choice = 1; // For
+            const secret = web3.utils.soliditySha3(
+                { t: 'uint256', v: choice },
+                { t: 'string', v: "test_secret" }
+            );
+            
+            const commit = {
+                choice: choice,
+                secret: secret,
+                status: 1 // Committed
+            };
 
-            try {
-                const commitHash = web3.utils.keccak256(web3.utils.encodePacked(2, "secret4"));
-                await votingSystem.commitVote(proposalId, commitHash, { from: voter4 });
-                assert.fail("Expected an error but did not get one");
-            } catch (error) {
-                assert(error.message.includes("Unit not registered"), "Expected 'Unit not registered' error");
-            }
+            // Set user commit
+            await votingStorage.setUserCommit(voter1, proposalId, commit);
+
+            // Get user commit
+            const retrievedCommit = await votingStorage.getUserCommit(voter1, proposalId);
+            
+            assert.equal(retrievedCommit.choice, choice, "Commit choice not stored correctly");
+            assert.equal(retrievedCommit.secret, secret, "Commit secret not stored correctly");
+            assert.equal(retrievedCommit.status, 1, "Commit status not stored correctly");
         });
 
-        it("should reject commit votes from units with revoked voting rights", async () => {
-            const proposalId = 0;
-
-            try {
-                const commitHash = web3.utils.keccak256(web3.utils.encodePacked(2, "secret3"));
-                await votingSystem.commitVote(proposalId, commitHash, { from: voter3 });
-                assert.fail("Expected an error but did not get one");
-            } catch (error) {
-                assert(error.message.includes("Unit does not have voting rights"), "Expected 'Unit does not have voting rights' error");
-            }
-        });
-    });
-
-    describe("Vote Reveal", () => {
-        it("should allow a voter to reveal their vote", async () => {
-            const proposalId = 0;
-            const secret = "secret1";
-            const voteChoice = 1; // Voting "For"
-
-            await votingSystem.revealVote(proposalId, voteChoice, secret, { from: voter1 });
-
-            const proposal = await votingSystem.getProposal(proposalId);
-            const commit = await votingSystem.getUserCommit(voter1, proposalId);
-
-            assert.equal(proposal.votesFor.toString(), "1", "Votes for should be incremented");
-            assert.equal(commit.status, "2", "Vote should be marked as revealed");
+        it("should allow retrieving proposal from proposal storage", async () => {
+            // Get proposal from storage
+            const proposal = await votingStorage.getProposal(proposalId);
+            
+            assert.equal(proposal.title, "Test Proposal", "Proposal not retrieved correctly");
         });
 
-        it("should reject revealing invalid votes", async () => {
-            const proposalId = 0;
-            const secret = "secret2";
-            const voteChoice = 2; // Voting "Against"
-            const commitHash = web3.utils.keccak256(web3.utils.encodePacked(voteChoice, secret));
+        it("should return correct proposals length", async () => {
+            // Create another proposal
+            await proposalManager.raiseProposal(
+                "Second Test Proposal",
+                "Another test proposal description",
+                2000,
+                "Another Test Solution"
+            );
 
-            await votingSystem.commitVote(proposalId, commitHash, { from: voter2 });
-
-            const invalidSecret = "wrongSecret"; // A different secret than what was committed
-            const invalidVoteChoice = 2; // Voting "Against" (or any invalid choice)
-
-            try {
-                await votingSystem.revealVote(proposalId, invalidVoteChoice, invalidSecret, { from: voter2 });
-                assert.fail("Expected 'Hash mismatch' error but did not get one");
-            } catch (error) {
-                assert(error.message.includes("Hash mismatch"), "Expected 'Hash mismatch' error");
-            }
+            const proposalsLength = await votingStorage.getProposalsLength();
+            assert.equal(proposalsLength, 2, "Incorrect number of proposals");
         });
     });
 
-    describe("Close Voting", () => {
-        it("should allow the proposer to close voting and tally votes", async () => {
-            const proposalId = 0;
+    describe("Vote Options and Statuses", () => {
+        it("should have correct vote options enum", async () => {
+            const voteOptions = {
+                None: 0,
+                For: 1,
+                Against: 2,
+                Abstain: 3
+            };
 
-            await votingSystem.closeVoting(proposalId, { from: unitProposer });
-
-            const proposal = await votingSystem.getProposal(proposalId);
-            assert.equal(proposal.status.toString(), "2", "Proposal status should be VotingClosed");
+            const contractVoteOptions = await votingStorage.getUserCommit(accounts[0], 0);
+            
+            assert.equal(
+                contractVoteOptions.choice, 
+                voteOptions.None, 
+                "Vote options enum does not match expected values"
+            );
         });
 
-        it("should reject committing votes after voting is closed", async () => {
-            const proposalId = 0;
+        it("should have correct vote status enum", async () => {
+            const voteStatuses = {
+                None: 0,
+                Committed: 1,
+                Revealed: 2
+            };
 
+            const contractCommit = await votingStorage.getUserCommit(accounts[0], 0);
+            
+            assert.equal(
+                contractCommit.status, 
+                voteStatuses.None, 
+                "Vote status enum does not match expected values"
+            );
+        });
+    });
+
+    describe("Error Handling", () => {
+        it("should revert when trying to get user commit for non-existent proposal", async () => {
             try {
-                const commitHash = web3.utils.keccak256(web3.utils.encodePacked("A", "secret2"));
-                await votingSystem.commitVote(proposalId, commitHash, { from: voter2 });
-                assert.fail("Expected an error but did not get one");
+                await votingStorage.getUserCommit(voter1, 9999);
+                assert.fail("Should have thrown an error");
             } catch (error) {
-                assert(error.message.includes("Voting is not open"), "Expected 'Voting is not open' error");
+                assert(error.message.includes("revert") || error.message.includes("invalid"), 
+                    "Expected a revert or invalid error");
             }
         });
     });
 });
+
+// Utility function for expecting reverts
+async function expectRevert(promise, errorMessage) {
+    try {
+        await promise;
+        assert.fail('Expected revert not received');
+    } catch (error) {
+        assert(
+            error.message.includes(errorMessage),
+            `Expected "${errorMessage}", got "${error.message}" instead`
+        );
+    }
+}

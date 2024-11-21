@@ -51,7 +51,6 @@ contract ProposalStorage is DataStorageBase {
         return proposals[proposalId];
     }
 
-
     function updateProposalStatus(uint256 proposalId, DataTypes.ProposalStatus newStatus) external onlyAuthorized {
         require(proposalId < proposals.length, "Invalid proposal ID");
         proposals[proposalId].status = newStatus;
