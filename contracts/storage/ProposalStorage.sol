@@ -39,10 +39,6 @@ contract ProposalStorage is DataStorageBase {
     mapping(uint256 => uint256[]) private proposalVoteIds; // Mapping of proposal ID to its associated vote IDs
     mapping(address => bool) public authorizedContracts; // Mapping of authorized contracts
 
-   function addAuthorizedContract(address contractAddress) external onlyOwner override {
-        authorizedContracts[contractAddress] = true;
-    }
-
     /// @notice Store a new proposal and return its ID
     /// @param proposal The proposal to store
     /// @return proposalId The ID of the newly stored proposal

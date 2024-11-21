@@ -3,7 +3,6 @@ pragma solidity >=0.5.0 <0.9.0;
 
 library DataTypes {
     // Constants need to be declared at the library level
-    uint256 public constant DEFAULT_BOOKING_QUOTA = 10;
     enum ProposalStatus { Submitted, VotingOpen, VotingClosed, Accepted, Rejected }
     enum FeedbackStatus { Open, Resolved }
 

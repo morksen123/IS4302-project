@@ -7,6 +7,7 @@ interface IProposalManager {
     // event ProposalStatusUpdated(uint256 indexed proposalId, DataTypes.ProposalStatus newStatus);
 
     function raiseProposal(
+                address proposer,
         string calldata title,
         string calldata description,
         uint256 suggestedBudget,
