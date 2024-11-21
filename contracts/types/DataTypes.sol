@@ -16,6 +16,7 @@ library DataTypes {
         bool votingRights;
         uint256 bookingQuota;
         uint256 lastPayment;
+        bool agmParticipation;
     }
 
 
@@ -40,4 +41,5 @@ library DataTypes {
        //  FeedbackStatus status;
         uint256 createdAt;
     }
+    uint256 constant DEFAULT_BOOKING_QUOTA = 5;
 }

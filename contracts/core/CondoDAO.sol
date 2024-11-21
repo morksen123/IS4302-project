@@ -11,6 +11,7 @@ import "../storage/UnitStorage.sol";
 import "../storage/TreasuryStorage.sol";
 import "../storage/ProposalStorage.sol";
 import "../storage/FeedbackStorage.sol";
+import "../oracles/MockPropertyOracle.sol";
 
 contract CondoDAO {
         event Debug(string message);
@@ -21,6 +22,7 @@ contract CondoDAO {
     VotingSystem public votingSystem;
     ProposalManager public proposalManager;
     FeedbackManager public feedbackManager;
+    MockPropertyOracle public mockPropertyOracle;
 
     // Data Storage
     UnitStorage private unitStorage;
@@ -40,9 +42,11 @@ contract CondoDAO {
         // feedbackStorage = new FeedbackStorage();
                 emit Debug("Storage contracts initialized");
 
-
-        // Initialize Interface Contracts
-        unitManager = new UnitManager(address(unitStorage));
+        // initialize interface contracts
+        unitManager = new UnitManager(
+            address(unitStorage),
+            address(mockPropertyOracle) // Pass oracle address to UnitManager
+        );
         treasuryManager = new TreasuryManager(address(treasuryStorage), address(unitManager));
         votingSystem = new VotingSystem(address(unitManager));
         // proposalManager = new ProposalManager(address(proposalStorage));
