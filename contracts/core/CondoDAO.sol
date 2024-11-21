@@ -36,8 +36,8 @@ contract CondoDAO {
 
         unitStorage = new UnitStorage();
         treasuryStorage = new TreasuryStorage();
-      //  proposalStorage = new ProposalStorage();
-       // feedbackStorage = new FeedbackStorage();
+        // proposalStorage = new ProposalStorage();
+        // feedbackStorage = new FeedbackStorage();
                 emit Debug("Storage contracts initialized");
 
 
@@ -45,8 +45,8 @@ contract CondoDAO {
         unitManager = new UnitManager(address(unitStorage));
         treasuryManager = new TreasuryManager(address(treasuryStorage), address(unitManager));
         votingSystem = new VotingSystem(address(unitManager));
-       // proposalManager = new ProposalManager(address(proposalStorage));
-       // feedbackManager = new FeedbackManager(address(feedbackStorage));
+        // proposalManager = new ProposalManager(address(proposalStorage));
+        // feedbackManager = new FeedbackManager(address(feedbackStorage));
                 emit Debug("Manager contracts initialized");
 
 
@@ -54,7 +54,7 @@ contract CondoDAO {
         unitStorage.addAuthorizedContract(address(unitManager));
         treasuryStorage.addAuthorizedContract(address(treasuryManager));
       //  proposalStorage.addAuthorizedContract(address(proposalManager));
-       // feedbackStorage.addAuthorizedContract(address(feedbackManager));
+      //  feedbackStorage.addAuthorizedContract(address(feedbackManager));
           emit Debug("Authorization set for manager contracts");
 
         emit Debug("CondoDAO constructor completed");

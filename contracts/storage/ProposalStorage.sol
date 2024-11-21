@@ -46,7 +46,6 @@ contract ProposalStorage is DataStorageBase {
         return proposals.length - 1; // Return the ID of the newly stored proposal
     }
 
-
     function getProposal(uint256 proposalId) external view onlyAuthorized returns (DataTypes.Proposal memory) {
         require(proposalId < proposals.length, "Invalid proposal ID");
         return proposals[proposalId];
@@ -134,7 +133,7 @@ contract ProposalStorage is DataStorageBase {
 
         return result;
     }
-    
+
     function getProposalCount() external view onlyAuthorized returns (uint256) {
         return proposals.length;
     }
