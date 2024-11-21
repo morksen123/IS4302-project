@@ -40,15 +40,14 @@ contract CondoDAO {
         // feedbackStorage = new FeedbackStorage();
                 emit Debug("Storage contracts initialized");
 
-
         // Initialize Interface Contracts
         unitManager = new UnitManager(address(unitStorage));
         treasuryManager = new TreasuryManager(address(treasuryStorage), address(unitManager));
+
         votingSystem = new VotingSystem(address(unitManager));
         // proposalManager = new ProposalManager(address(proposalStorage));
         // feedbackManager = new FeedbackManager(address(feedbackStorage));
                 emit Debug("Manager contracts initialized");
-
 
         // Set Authorization for Storage Contracts
         unitStorage.addAuthorizedContract(address(unitManager));

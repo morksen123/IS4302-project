@@ -1,134 +1,120 @@
-// voting system
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.0 <0.9.0;
 
 import "../core/UnitManager.sol";
 import "../interfaces/IVotingSystem.sol";
-import "../core/UnitManager.sol";
 import "../interfaces/IUnitManager.sol";
+import "../storage/VotingStorage.sol";
 
 contract VotingSystem {
-    enum ProposalStatus { Submitted, Pending, Rejected, Approved, WorkInProgress, Completed, Closed } 
-    struct Proposal {
-        address proposer;
-        string title;
-        string objectives;
-        string background;
-        string implementationPlan;
-        string budget;
-        uint256 dateCreated; // Use a timestamp for the date created
-        uint256 votesFor;
-        uint256 votesAgainst;
-        ProposalStatus status;
+    VotingStorage public votingStorage;
+
+    modifier onlyProposer(uint256 proposalId) {
+        require(msg.sender == votingStorage.getProposal(proposalId).proposer, "Only the proposer can perform this action");
+        _;
     }
 
-    Proposal[] public proposals; 
-    IUnitManager public unitManager;
-    // Mapping to track if a unit has voted on a specific proposal
-    mapping(uint256 => mapping(address => bool)) public hasVoted;
-    // Track if AGM has started
-    bool AGMStarted = false;
-
-    constructor(address _unitManager) public {
-        unitManager = IUnitManager(_unitManager); // Set the UnitManager reference
+    constructor(address _votingStorage, address _unitManager) public {
+        votingStorage = VotingStorage(_votingStorage);
+        votingStorage.setUnitManager(_unitManager);
     }
 
-    // Events
     event ProposalCreated(uint256 proposalId, address indexed proposer, string title);
-    event VoteCast(uint256 proposalId, address indexed voter, bool support);
-    event AGMVotingStarted();
+    event VoteCommitted(uint256 proposalId, address indexed voter, bytes32 commitHash);
+    event VoteRevealed(uint256 proposalId, address indexed voter, VotingStorage.VoteOption choice);
+    event VotingStarted(uint256 proposalId);
+    event VotingClosed(uint256 proposalId, VotingStorage.ProposalStatus result);
 
-    // Function to create a proposal
     function createProposal(
-        address _proposer,
         string memory _title,
-        string memory _objectives,
-        string memory _background,
-        string memory _implementationPlan,
-        string memory _budget
-    ) external {
-        require(_proposer != address(0), "Invalid proposer address");
-        require(unitManager.isRegistered(_proposer), "Unit is not registered");
-        require(unitManager.hasVotingRights(_proposer), "Unit does not have voting rights");
-        require(!AGMStarted, "Cannot add proposal whilst AGM is in session");
-
-
-        Proposal memory newProposal = Proposal({
-            proposer: _proposer,
+        string memory _description,
+        string memory _solution,
+        uint256 _budget
+    ) public {
+        VotingStorage.Proposal memory newProposal = VotingStorage.Proposal({
+            proposer: msg.sender,
             title: _title,
-            objectives: _objectives,
-            background: _background,
-            implementationPlan: _implementationPlan,
+            description: _description,
+            solution: _solution,
             budget: _budget,
-            dateCreated: block.timestamp,
+            status: VotingStorage.ProposalStatus.Submitted,
             votesFor: 0,
             votesAgainst: 0,
-            status: ProposalStatus.Submitted //when created, it is merely submitted
+            votesAbstained: 0,
+            totalVotes: 0
         });
 
-        proposals.push(newProposal); // Add the new proposal to the proposals array
-        emit ProposalCreated(proposals.length - 1, _proposer, _title); // Emit event for proposal creation
+        votingStorage.pushProposal(newProposal);
+        emit ProposalCreated(votingStorage.getProposalsLength() - 1, msg.sender, _title);
     }
 
-    // Function to cast a vote for a proposal
-    function vote(uint256 proposalId, bool support) external {
-        require(proposalId < proposals.length, "Invalid proposal ID");
-        require(AGMStarted, "AGM not in session");
-        require(proposals[proposalId].status == ProposalStatus.Pending, "Proposal status is not pending");
-        require(unitManager.isRegistered(msg.sender), "Unit is not registered");
-        require(unitManager.hasVotingRights(msg.sender), "Unit does not have voting rights");
-        require(!hasVoted[proposalId][msg.sender], "Unit already voted on this proposal");
-
-        Proposal storage proposal = proposals[proposalId];
-
-        if (support) {
-            proposal.votesFor++;
-        } else {
-            proposal.votesAgainst++; 
-        }
-        hasVoted[proposalId][msg.sender] = true;
-        emit VoteCast(proposalId, msg.sender, support); // Emit event for vote casting
+    function startVoting(uint256 proposalId) public onlyProposer(proposalId) {
+        require(proposalId < votingStorage.getProposalsLength(), "Invalid proposal ID");
+        VotingStorage.Proposal memory proposal = votingStorage.getProposal(proposalId);
+        proposal.status = VotingStorage.ProposalStatus.VotingOpen;
+        votingStorage.updateProposal(proposalId, proposal);
+        emit VotingStarted(proposalId);
     }
 
-    // Function to get proposal details
-    function getProposal(uint256 proposalId) external view returns (
-        address proposer,
-        string memory title,
-        string memory objectives,
-        string memory background,
-        string memory implementationPlan,
-        string memory budget,
-        uint256 dateCreated,
-        uint256 votesFor,
-        uint256 votesAgainst,
-        ProposalStatus status
-    ) {
-        require(proposalId < proposals.length, "Invalid proposal ID");
-        Proposal storage proposal = proposals[proposalId];
+    function commitVote(uint256 proposalId, bytes32 commitHash) public {
+        require(proposalId < votingStorage.getProposalsLength(), "Invalid proposal ID");
+        require(votingStorage.getProposal(proposalId).status == VotingStorage.ProposalStatus.VotingOpen, "Voting is not open");
+        require(votingStorage.getUserCommit(msg.sender, proposalId).status == VotingStorage.VoteStatus.None, "Already committed a vote");
+        require(votingStorage.getUnitManager().isRegistered(msg.sender), "Unit not registered");
+        require(votingStorage.getUnitManager().hasVotingRights(msg.sender), "Unit does not have voting rights");
 
-        return (
-            proposal.proposer,
-            proposal.title,
-            proposal.objectives,
-            proposal.background,
-            proposal.implementationPlan,
-            proposal.budget,
-            proposal.dateCreated,
-            proposal.votesFor,
-            proposal.votesAgainst,
-            proposal.status
-        );
+        VotingStorage.Commit memory newCommit = VotingStorage.Commit({
+            choice: VotingStorage.VoteOption.None,
+            secret: commitHash,
+            status: VotingStorage.VoteStatus.Committed
+        });
+        
+        votingStorage.setUserCommit(msg.sender, proposalId, newCommit);
+        emit VoteCommitted(proposalId, msg.sender, commitHash);
     }
 
-    // Function to start AGM voting
-    function startAGMVoting() external {
-      for (uint256 i = 0; i < proposals.length; i++) {
-          Proposal storage proposal = proposals[i];
-          if (proposal.status == ProposalStatus.Submitted) {
-              proposal.status = ProposalStatus.Pending; // Change status to Pending for all submitted proposals to allow voting
-          }
-      }
-      AGMStarted = true;
-      emit AGMVotingStarted(); 
+    function revealVote(uint256 proposalId, VotingStorage.VoteOption choice, string memory secret) public {
+        require(proposalId < votingStorage.getProposalsLength(), "Invalid proposal ID");
+        require(votingStorage.getProposal(proposalId).status == VotingStorage.ProposalStatus.VotingOpen, "Voting is not open");
+
+        VotingStorage.Commit memory userCommit = votingStorage.getUserCommit(msg.sender, proposalId);
+        require(userCommit.status == VotingStorage.VoteStatus.Committed, "No vote committed or already revealed");
+        require(keccak256(abi.encodePacked(uint256(choice), secret)) == userCommit.secret, "Hash mismatch");
+
+        userCommit.choice = choice;
+        userCommit.status = VotingStorage.VoteStatus.Revealed;
+        votingStorage.setUserCommit(msg.sender, proposalId, userCommit);
+
+        VotingStorage.Proposal memory proposal = votingStorage.getProposal(proposalId);
+        proposal.totalVotes++;
+
+        if (choice == VotingStorage.VoteOption.For) proposal.votesFor++;
+        if (choice == VotingStorage.VoteOption.Against) proposal.votesAgainst++;
+        if (choice == VotingStorage.VoteOption.Abstain) proposal.votesAbstained++;
+
+        votingStorage.updateProposal(proposalId, proposal);
+        emit VoteRevealed(proposalId, msg.sender, choice);
     }
+
+    function closeVoting(uint256 proposalId) public onlyProposer(proposalId) {
+        require(proposalId < votingStorage.getProposalsLength(), "Invalid proposal ID");
+        require(votingStorage.getProposal(proposalId).status == VotingStorage.ProposalStatus.VotingOpen, "Voting is not open");
+
+        VotingStorage.Proposal memory proposal = votingStorage.getProposal(proposalId);
+        proposal.status = VotingStorage.ProposalStatus.VotingClosed;
+        votingStorage.updateProposal(proposalId, proposal);
+
+        emit VotingClosed(proposalId, proposal.status);
+    }
+
+    function getProposal(uint256 proposalId) external view returns (VotingStorage.Proposal memory) {
+        return votingStorage.getProposal(proposalId);
+    }
+
+    function getUserCommit(address voter, uint256 proposalId) external view returns (VotingStorage.Commit memory) {
+        return votingStorage.getUserCommit(voter, proposalId);
+}
+
+
+
 }
