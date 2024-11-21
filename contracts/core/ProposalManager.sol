@@ -90,7 +90,7 @@ contract ProposalManager is IProposalManager {
     }
 
     /// @notice Get a specific proposal by ID
-    function getProposal(uint256 proposalId) external view override onlyRegistered returns (DataTypes.Proposal memory) {
+    function getProposal(uint256 proposalId) external view override onlyRegisteredOrVotingContract returns (DataTypes.Proposal memory) {
         return proposalStorage.getProposal(proposalId);
     }
 
