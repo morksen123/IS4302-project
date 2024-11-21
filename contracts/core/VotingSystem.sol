@@ -14,10 +14,9 @@ import "../core/ProposalManager.sol";
 
 contract VotingSystem {
     VotingStorage public votingStorage;
-    // ProposalStorage public proposalStorage;
     ProposalManager public proposalManager;
     IUnitManager private unitManager;
-    address private owner;
+    address public owner;
 
     constructor(address _votingStorage, address _unitManager) public {
         require(_votingStorage != address(0), "Invalid vote storage address");
@@ -33,13 +32,17 @@ contract VotingSystem {
         _;
     }
 
+    function getOwner() public view returns (address) {
+        return owner;
+    }
+
     //Set ProposalManager 
 
     function setProposalContract(ProposalManager _proposalManager) external {
         require(address(proposalManager) == address(0), "Proposal manager already set");
         proposalManager = _proposalManager;
     }
-    // event ProposalCreated(uint256 proposalId, address indexed proposer, string title);
+
     event VoteCommitted(uint256 proposalId, address indexed voter, bytes32 commitHash);
     event VoteRevealed(uint256 proposalId, address indexed voter, VotingStorage.VoteOption choice);
 
@@ -70,7 +73,7 @@ contract VotingSystem {
     // }
 
     // Open Voting for all valid proposals
-    function startVoting() public onlyOwner() {
+    function startVoting() public {
         // require(proposalId < proposalStorage.getAllProposals().length, "Invalid proposal ID");
         // DataTypes.Proposal memory proposal = proposalStorage.getProposal(proposalId);
         // proposal.status = DataTypes.ProposalStatus.VotingOpen;
@@ -106,7 +109,7 @@ contract VotingSystem {
         emit VoteCommitted(proposalId, msg.sender, commitHash);
     }
 
-    function closeVoting() public onlyOwner() {
+    function closeVoting() public {
         // require(proposalId < proposalStorage.getAllProposals().length, "Invalid proposal ID");
         // DataTypes.Proposal memory proposal = proposalStorage.getProposal(proposalId);
         // proposal.status = DataTypes.ProposalStatus.VotingOpen;

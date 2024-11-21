@@ -44,6 +44,7 @@ contract CondoDAO {
         proposalManager.setVotingContract(address(votingSystem));
 
         votingStorage.addAuthorizedContract(address(votingSystem));
+        votingStorage.setUnitManager(address(unitManager));
         votingSystem.setProposalContract(proposalManager);
 
         
