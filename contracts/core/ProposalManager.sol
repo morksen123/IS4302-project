@@ -15,6 +15,7 @@ contract ProposalManager is IProposalManager {
 
     event ProposalRaised(uint256 indexed proposalId, address indexed unitAddress, string title);
     event ProposalStatusUpdated(uint256 indexed proposalId, DataTypes.ProposalStatus newStatus);
+    event VotingContractSet(address votingContract);
 
     // Constructor accepts the addresses of ProposalStorage and UnitManager
     constructor(address _proposalStorage, address _unitManager) {
@@ -28,11 +29,21 @@ contract ProposalManager is IProposalManager {
         _;
     }
 
-    /// @notice Set the Voting contract address
+ /// @notice Combined modifier for access control
+    modifier onlyRegisteredOrVotingContract() {
+        if (msg.sender != votingContract) {
+            require(unitManager.isRegistered(msg.sender), "Unit not registered or unauthorized");
+        }
+        _;
+    }
+
+     /// @notice Set the Voting contract address
     /// @param _votingContract The address of the voting contract
     function setVotingContract(address _votingContract) external {
         require(votingContract == address(0), "Voting contract already set");
+        require(_votingContract != address(0), "Invalid voting contract address");
         votingContract = _votingContract;
+        emit VotingContractSet(_votingContract);
     }
 
     modifier onlyVotingContract() {
@@ -73,7 +84,7 @@ contract ProposalManager is IProposalManager {
 
     /// @notice Update the status of a proposal
     /// @param proposalId The ID of the proposal
-    function updateProposalStatus(uint256 proposalId, DataTypes.ProposalStatus newStatus) external override onlyRegistered {
+    function updateProposalStatus(uint256 proposalId, DataTypes.ProposalStatus newStatus) external override onlyRegisteredOrVotingContract {
         proposalStorage.updateProposalStatus(proposalId, newStatus);
         emit ProposalStatusUpdated(proposalId, newStatus);
     }
@@ -84,7 +95,7 @@ contract ProposalManager is IProposalManager {
     }
 
     /// @notice Retrieve all proposals
-    function getAllProposals() external view override onlyRegistered returns (DataTypes.Proposal[] memory) {
+    function getAllProposals() external view override onlyRegisteredOrVotingContract returns (DataTypes.Proposal[] memory) {
         return proposalStorage.getAllProposals();
     }
 
