@@ -16,19 +16,6 @@ contract("ProposalManager with VotingSystem", (accounts) => {
   const SUGGESTED_BUDGET = 1000;
   const PROPOSED_SOLUTION = "Identify a location, gather volunteers, and start planting.";
 
-  // before(async () => {
-  //   // Deploy ProposalStorage and ProposalManager contracts
-  //   proposalStorage = await ProposalStorage.new();
-  //   proposalManager = await ProposalManager.new(proposalStorage.address);
-
-  //   // Deploy VotingSystem contract
-  //   votingSystem = await VotingSystem.new(proposalManager.address);
-
-  //   // Set up authorization
-  //   await proposalStorage.addAuthorizedContract(proposalManager.address, { from: deployer });
-  //   await proposalManager.setVotingContract(votingSystem.address, { from: deployer });
-  // });
-
   before(async () => {
     // Reuse the deployed contracts from migrations
     proposalStorage = await ProposalStorage.deployed();
@@ -40,14 +27,12 @@ contract("ProposalManager with VotingSystem", (accounts) => {
 
   it("should verify that ProposalManager is authorized in ProposalStorage", async () => {
     const isAuthorized = await proposalStorage.authorizedContracts(proposalManager.address);
-    console.log("Is ProposalManager authorized?", isAuthorized);
     assert.equal(isAuthorized, true, "ProposalManager should be authorized in ProposalStorage");
   });
 
   it("should verify that ProposalManager is authorized", async () => {
     const isAuthorized = await proposalStorage.authorizedContracts(proposalManager.address);
-    console.log("ProposalManager Address:", proposalManager.address);
-    console.log("ProposalStorage Address:", proposalStorage.address);
+
     assert.equal(isAuthorized, true, "ProposalManager should be authorized");
   });
 

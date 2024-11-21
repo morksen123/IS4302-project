@@ -1,46 +1,6 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.0 <0.9.0;
 
-// contract ProposalManager is IProposalManager {
-//     ProposalStorage private proposalStorage;
-
-//     // Constructor accepts the address of ProposalStorage
-//     constructor(address _proposalStorage) public {
-//         proposalStorage = ProposalStorage(_proposalStorage);
-//     }
-
-//     function raiseProposal(
-//         string calldata title,
-//         string calldata description,
-//         uint256 suggestedBudget,
-//         string calldata proposedSolution
-//     ) external {
-//         DataTypes.Proposal memory newProposal = DataTypes.Proposal({
-//             unitAddress: msg.sender,
-//             title: title,
-//             description: description,
-//             suggestedBudget: suggestedBudget,
-//             proposedSolution: proposedSolution,
-//             status: DataTypes.ProposalStatus.Submitted,
-//             createdAt: block.timestamp
-//         });
-        
-//         uint256 proposalId = proposalStorage.storeProposal(newProposal);
-//         emit ProposalRaised(proposalId, msg.sender, title);
-//     }
-
-//     function updateProposalStatus(uint256 proposalId, DataTypes.ProposalStatus newStatus) external {
-//         proposalStorage.updateProposalStatus(proposalId, newStatus);
-//         emit ProposalStatusUpdated(proposalId, newStatus);
-//     }
-
-//     function getProposal(uint256 proposalId) external view returns (DataTypes.Proposal memory) {
-//         return proposalStorage.getProposal(proposalId);
-//     }
-
-// }
-
-
 import "../interfaces/IProposalManager.sol";
 import "../storage/ProposalStorage.sol";
 import "../types/DataTypes.sol";
@@ -179,33 +139,6 @@ contract ProposalManager is IProposalManager {
         return proposalStorage.getVoteIdsForProposal(proposalId);
     }
 
-    /// @notice Start voting for a proposal
-    function startVoting(uint256 proposalId) external onlyRegistered {
-        DataTypes.Proposal memory proposal = proposalStorage.getProposal(proposalId);
-        require(msg.sender == proposal.unitAddress, "Only the proposer can start voting");
-        require(proposal.status == DataTypes.ProposalStatus.Submitted, "Proposal is not in a valid state");
-
-        proposalStorage.updateProposalStatus(proposalId, DataTypes.ProposalStatus.VotingOpen);
-        VotingSystem(votingContract).startVoting(proposalId);
-    }
-
-    /// @notice Close voting for a proposal
-    function closeVoting(uint256 proposalId) external onlyRegistered {
-        DataTypes.Proposal memory proposal = proposalStorage.getProposal(proposalId);
-        require(msg.sender == proposal.unitAddress, "Only the proposer can close voting");
-        require(proposal.status == DataTypes.ProposalStatus.VotingOpen, "Proposal is not in VotingOpen state");
-
-        VotingSystem(votingContract).closeVoting(proposalId);
-    }
-
-    /// @notice Close voting and update status based on results
-    function closeVoting(uint256 proposalId, DataTypes.ProposalStatus newStatus) external onlyVotingContract {
-        require(
-            newStatus == DataTypes.ProposalStatus.Accepted || newStatus == DataTypes.ProposalStatus.Rejected,
-            "Invalid closing status"
-        );
-        proposalStorage.updateProposalStatus(proposalId, newStatus);
-    }
 }
 
 

@@ -5,128 +5,168 @@ import "../core/UnitManager.sol";
 import "../interfaces/IVotingSystem.sol";
 import "../interfaces/IUnitManager.sol";
 
+
+import "../storage/base/DataStorageBase.sol";
+import "../storage/VotingStorage.sol";
+import "../storage/ProposalStorage.sol";
+
+import "../core/ProposalManager.sol";
+
 contract VotingSystem {
-    enum VoteOption { None, For, Against, Abstain }
-    enum ProposalStatus { Submitted, VotingOpen, VotingClosed, Accepted, Rejected }
-    enum VoteStatus { None, Committed, Revealed }
+    VotingStorage public votingStorage;
+    ProposalManager public proposalManager;
+    IUnitManager private unitManager;
+    address public owner;
 
-    struct Proposal {
-        address proposer;
-        string title;
-        string description;
-        string solution;
-        uint256 budget;
-        ProposalStatus status;
-        uint256 votesFor;
-        uint256 votesAgainst;
-        uint256 votesAbstained;
-        uint256 totalVotes;
+    constructor(address _votingStorage, address _unitManager) public {
+        require(_votingStorage != address(0), "Invalid vote storage address");
+        require(_unitManager != address(0), "Invalid unit manager address");
+        owner = msg.sender;
+
+        votingStorage = VotingStorage(_votingStorage);
+        unitManager = IUnitManager(_unitManager);
     }
 
-    struct Commit {
-        VoteOption choice;
-        bytes32 secret;    // Hash for verification
-        VoteStatus status; // Status of the vote (None, Committed, Revealed)
-    }
-
-    Proposal[] public proposals;
-    mapping(address => mapping(uint256 => Commit)) public userCommits; // voter => (proposalId => Commit)
-    IUnitManager public unitManager;
-
-    event ProposalCreated(uint256 proposalId, address indexed proposer, string title);
-    event VoteCommitted(uint256 proposalId, address indexed voter, bytes32 commitHash);
-    event VoteRevealed(uint256 proposalId, address indexed voter, VoteOption choice);
-    event VotingStarted(uint256 proposalId);
-    event VotingClosed(uint256 proposalId, ProposalStatus result);
-
-    modifier onlyProposer(uint256 proposalId) {
-        require(msg.sender == proposals[proposalId].proposer, "Only the proposer can perform this action");
+    modifier onlyOwner() {
+        require(msg.sender == owner, "Only the Owner can perform this action");
         _;
     }
 
-    constructor(address _unitManager) public {
-        unitManager = IUnitManager(_unitManager); // Set the UnitManager reference
+    function getOwner() public view returns (address) {
+        return owner;
     }
 
-    function createProposal(
-        string memory _title,
-        string memory _description,
-        string memory _solution,
-        uint256 _budget
-    ) public {
-        Proposal memory newProposal = Proposal({
-            proposer: msg.sender,
-            title: _title,
-            description: _description,
-            solution: _solution,
-            budget: _budget,
-            status: ProposalStatus.Submitted,
-            votesFor: 0,
-            votesAgainst: 0,
-            votesAbstained: 0,
-            totalVotes: 0
-        });
+    //Set ProposalManager 
 
-        proposals.push(newProposal);
-        emit ProposalCreated(proposals.length - 1, msg.sender, _title);
+    function setProposalContract(ProposalManager _proposalManager) external {
+        require(address(proposalManager) == address(0), "Proposal manager already set");
+        proposalManager = _proposalManager;
     }
 
-    function startVoting(uint256 proposalId) public onlyProposer(proposalId) {
-        require(proposalId < proposals.length, "Invalid proposal ID");
-        proposals[proposalId].status = ProposalStatus.VotingOpen;
-        emit VotingStarted(proposalId);
+    event VoteCommitted(uint256 proposalId, address indexed voter, bytes32 commitHash);
+    event VoteRevealed(uint256 proposalId, address indexed voter, VotingStorage.VoteOption choice);
+
+    event VotingStarted();
+    event VotingClosed();
+
+    // function createProposal(
+    //     string memory _title,
+    //     string memory _description,
+    //     string memory _solution,
+    //     uint256 _budget
+    // ) public {
+    //     VotingStorage.Proposal memory newProposal = VotingStorage.Proposal({
+    //         proposer: msg.sender,
+    //         title: _title,
+    //         description: _description,
+    //         solution: _solution,
+    //         budget: _budget,
+    //         status: VotingStorage.ProposalStatus.Submitted,
+    //         votesFor: 0,
+    //         votesAgainst: 0,
+    //         votesAbstained: 0,
+    //         totalVotes: 0
+    //     });
+
+    //     votingStorage.pushProposal(newProposal);
+    //     emit ProposalCreated(votingStorage.getProposalsLength() - 1, msg.sender, _title);
+    // }
+
+    // Open Voting for all valid proposals
+    function startVoting() public {
+        // require(proposalId < proposalStorage.getAllProposals().length, "Invalid proposal ID");
+        // DataTypes.Proposal memory proposal = proposalStorage.getProposal(proposalId);
+        // proposal.status = DataTypes.ProposalStatus.VotingOpen;
+        for (uint256 i = 0; i < proposalManager.getAllProposals().length; i++) {
+
+            // Only open voting for proposal if the proposal is "submitted"
+            if (proposalManager.getProposal(i).status == DataTypes.ProposalStatus.Submitted) {
+                proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.VotingOpen);
+            }
+        }
+
+        emit VotingStarted(); // Start Voting
     }
 
+    // Allow users to commit their vote to the selected proposal
+    // Choices: 0 for None, 1 for 'For', 2 for 'Against', 4 for 'Abstain'
+    // Commit hashes are created by users using keccak256 SHA-3 standards by encoding (their choice + secret)
     function commitVote(uint256 proposalId, bytes32 commitHash) public {
-        require(proposalId < proposals.length, "Invalid proposal ID");
-        require(proposals[proposalId].status == ProposalStatus.VotingOpen, "Voting is not open");
-        require(userCommits[msg.sender][proposalId].status == VoteStatus.None, "Already committed a vote");
-        require(unitManager.isRegistered(msg.sender), "Unit not registered");
-        require(unitManager.hasVotingRights(msg.sender), "Unit does not have voting rights");
+        require(proposalId < proposalManager.getAllProposals().length, "Invalid proposal ID");
+        require(proposalManager.getProposal(proposalId).status == DataTypes.ProposalStatus.VotingOpen, "Voting is not open");
+        require(votingStorage.getUserCommit(msg.sender, proposalId).status == VotingStorage.VoteStatus.None, "Already committed a vote");
 
-        userCommits[msg.sender][proposalId] = Commit({
-            choice: VoteOption.None,
+        require(votingStorage.getUnitManager().isRegistered(msg.sender), "Unit not registered");
+        require(votingStorage.getUnitManager().hasVotingRights(msg.sender), "Unit does not have voting rights");
+
+        VotingStorage.Commit memory newCommit = VotingStorage.Commit({
+            choice: VotingStorage.VoteOption.None,
             secret: commitHash,
-            status: VoteStatus.Committed
+            status: VotingStorage.VoteStatus.Committed
         });
-
+        
+        votingStorage.setUserCommit(msg.sender, proposalId, newCommit);
         emit VoteCommitted(proposalId, msg.sender, commitHash);
     }
 
-    function revealVote(uint256 proposalId, VoteOption choice, string memory secret) public {
-        require(proposalId < proposals.length, "Invalid proposal ID");
-        require(proposals[proposalId].status == ProposalStatus.VotingOpen, "Voting is not open");
+    function closeVoting() public {
+        // require(proposalId < proposalStorage.getAllProposals().length, "Invalid proposal ID");
+        // DataTypes.Proposal memory proposal = proposalStorage.getProposal(proposalId);
+        // proposal.status = DataTypes.ProposalStatus.VotingOpen;
+        for (uint256 i = 0; i < proposalManager.getAllProposals().length; i++) {
 
-        Commit storage userCommit = userCommits[msg.sender][proposalId];
-        require(userCommit.status == VoteStatus.Committed, "No vote committed or already revealed");
-        require(keccak256(abi.encodePacked(uint256(choice), secret)) == userCommit.secret, "Hash mismatch");
+            // Only close voting for proposal if the proposal is open for voting
+            if (proposalManager.getProposal(i).status == DataTypes.ProposalStatus.VotingOpen) {
+                proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.VotingClosed);
+            }
+        }
 
-        userCommit.choice = choice;
-        userCommit.status = VoteStatus.Revealed;
-
-        Proposal storage proposal = proposals[proposalId];
-        proposal.totalVotes++;
-
-        if (choice == VoteOption.For) proposal.votesFor++;
-        if (choice == VoteOption.Against) proposal.votesAgainst++;
-        if (choice == VoteOption.Abstain) proposal.votesAbstained++;
-
-        emit VoteRevealed(proposalId, msg.sender, choice);
+        emit VotingStarted(); // Start Voting
     }
 
-    function closeVoting(uint256 proposalId) public onlyProposer(proposalId) {
-        require(proposalId < proposals.length, "Invalid proposal ID");
-        require(proposals[proposalId].status == ProposalStatus.VotingOpen, "Voting is not open");
+    // Users to reveal vote upon voting end
+    // Votes are verified with their commit hashes by recreating the commit hash with (their vote + secret)
+    // 0 for None, 1 for 'For', 2 for 'Against', 4 for 'Abstain'
+    function revealVote(uint256 proposalId, uint256 choice, string memory secret) public {
+        require(proposalId < proposalManager.getAllProposals().length, "Invalid proposal ID");
+        require(proposalManager.getProposal(proposalId).status == DataTypes.ProposalStatus.VotingOpen, "Voting is not open");
 
-        Proposal storage proposal = proposals[proposalId];
-        proposal.status = ProposalStatus.VotingClosed;
+        // Get commit from commit storage in vote storage to verify
+        VotingStorage.Commit memory userCommit = votingStorage.getUserCommit(msg.sender, proposalId);
+        require(userCommit.status == VotingStorage.VoteStatus.Committed, "No vote committed or already revealed");
+        require(keccak256(abi.encodePacked(choice, secret)) == userCommit.secret, "Hash mismatch");
 
-        // if (proposal.votesFor > proposal.votesAgainst) {
-        //     proposal.status = ProposalStatus.Accepted;
-        // } else {
-        //     proposal.status = ProposalStatus.Rejected;
-        // }
+        VotingStorage.VoteOption convChoice = VotingStorage.VoteOption.None;
 
-        emit VotingClosed(proposalId, proposal.status);
+        if (choice == 1) convChoice = VotingStorage.VoteOption.For;
+        if (choice == 2) convChoice = VotingStorage.VoteOption.Against;
+        if (choice == 3) convChoice = VotingStorage.VoteOption.Abstain;
+
+        userCommit.choice = convChoice;
+        // Update commit status to "Revealed"
+        userCommit.status = VotingStorage.VoteStatus.Revealed;
+        votingStorage.setUserCommit(msg.sender, proposalId, userCommit);
+
+        // DataTypes.Proposal memory proposal = proposalStorage.getProposal(proposalId);
+
+        // Increment vote according to Choice
+        if (choice == 1) proposalManager.incrementVotes(proposalId, 1,0,0);
+        if (choice == 2) proposalManager.incrementVotes(proposalId, 0,1,0);
+        if (choice == 3) proposalManager.incrementVotes(proposalId, 0,0,1);
+
+        // votingStorage.updateProposal(proposalId, proposal);
+        emit VoteRevealed(proposalId, msg.sender, convChoice);
     }
+
+    
+    function getProposal(uint256 proposalId) external view returns (DataTypes.Proposal memory) {
+        return votingStorage.getProposal(proposalId);
+    }
+
+    function getUserCommit(address voter, uint256 proposalId) external view returns (VotingStorage.Commit memory) {
+        return votingStorage.getUserCommit(voter, proposalId);
+    }
+
+    // function addAuthorizedContract(address UnitManager) external returns ()
+
 }
