@@ -49,7 +49,7 @@ contract VotingSystem {
     }
 
     // Start voting for all currently 
-    function startVoting() external {
+    function startVoting() onlyOwner external {
         uint256 proposalCount = proposalManager.getAllProposals().length;
         for (uint256 i = 0; i < proposalCount; i++) {
             if (proposalManager.getProposal(i).status == DataTypes.ProposalStatus.Submitted) {
@@ -119,7 +119,7 @@ contract VotingSystem {
     }
 
     // Closes voting for all currently open proposals 
-    function closeVoting() public {
+    function closeVoting() onlyOwner public {
         for (uint256 i = 0; i < proposalManager.getAllProposals().length; i++) {
 
             // Only close voting for proposal if the proposal is open for voting
@@ -132,7 +132,7 @@ contract VotingSystem {
     }
 
     // tally votes for all proposals (subject to change which proposal to tallyVotes)
-    function tallyVotes() public {
+    function tallyVotes() onlyOwner public {
         for (uint256 i = 0; i < proposalManager.getAllProposals().length;i++) {
 ›
             // Check proposal status is at VotingClosed
