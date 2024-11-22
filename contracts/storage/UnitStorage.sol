@@ -30,6 +30,7 @@ contract UnitStorage is DataStorageBase {
         units[unitAddress] = unit;
     }
 
+    // update payment history
     function updatePaymentInfo(
         address unitAddress,
         uint256 amount,

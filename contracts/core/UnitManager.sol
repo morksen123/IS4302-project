@@ -37,7 +37,10 @@ contract UnitManager is IUnitManager {
      * @param unitAddress Address of the unit owner
      */
     function registerUnit(address unitAddress) external {
+        // check if unit is already registered
         require(!isRegistered(unitAddress), "Unit already registered");
+
+        // Use oracle data to verify property ownership before unit registration
         require(propertyOracle.verifyOwnership(unitAddress), "Not a verified property owner");
 
         DataTypes.Unit memory newUnit = DataTypes.Unit({
@@ -49,6 +52,8 @@ contract UnitManager is IUnitManager {
             lastPayment: block.timestamp,
             agmParticipation: false
         });
+
+        // store the unit address in unit storage
         unitStorage.setUnit(unitAddress, newUnit);
         emit UnitRegistered(unitAddress);
     }
@@ -59,7 +64,10 @@ contract UnitManager is IUnitManager {
      * @return Fee amount in ETH
      */
     function calculateManagementFee(address unitAddress) public view returns (uint256) {
+        // retrieves the unit associated with the address
         DataTypes.Unit memory unit = unitStorage.getUnit(unitAddress);
+
+        // discount given on management fee for AGM participation
         if (unit.agmParticipation) {
             return (MANAGEMENT_FEE * (100 - AGM_DISCOUNT_PERCENTAGE)) / 100;
         }
@@ -98,6 +106,8 @@ contract UnitManager is IUnitManager {
         unit.lateFees = 0;
         unit.lastPayment = block.timestamp;
         unitStorage.setUnit(msg.sender, unit);
+
+        // storing the payment in the unit storage payment history
         unitStorage.updatePaymentInfo(msg.sender, msg.value, block.timestamp);
 
         emit ManagementFeePaid(msg.sender, requiredFee);
