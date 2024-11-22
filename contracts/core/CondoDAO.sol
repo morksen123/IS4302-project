@@ -4,59 +4,59 @@ pragma solidity >=0.5.0 <0.9.0;
 import "../core/UnitManager.sol";
 import "../core/TreasuryManager.sol";
 import "../core/VotingSystem.sol";
-import "../core/ProposalManager.sol";
-import "../core/FeedbackManager.sol";
 
 import "../storage/UnitStorage.sol";
 import "../storage/TreasuryStorage.sol";
+import "../storage/VotingStorage.sol";
 import "../storage/ProposalStorage.sol";
 import "../storage/FeedbackStorage.sol";
+import "../oracles/MockPropertyOracle.sol";
+import "../core/ProposalManager.sol";
+import "../core/FeedbackManager.sol";
 
 contract CondoDAO {
-        event Debug(string message);
-
-    // Interfaces
+    // interfaces
     UnitManager public unitManager;
     TreasuryManager public treasuryManager;
     VotingSystem public votingSystem;
     ProposalManager public proposalManager;
     FeedbackManager public feedbackManager;
+    MockPropertyOracle public mockPropertyOracle;
 
-    // Data Storage
+    // data
     UnitStorage private unitStorage;
     TreasuryStorage private treasuryStorage;
+    VotingStorage private votingStorage;
     ProposalStorage private proposalStorage;
-    FeedbackStorage private feedbackStorage;
 
     constructor() public {
-        // Initialize Data Storage
-
-        emit Debug("Starting CondoDAO constructor");
-
-
+        // initialize data storage
         unitStorage = new UnitStorage();
         treasuryStorage = new TreasuryStorage();
-        // proposalStorage = new ProposalStorage();
-        // feedbackStorage = new FeedbackStorage();
-                emit Debug("Storage contracts initialized");
+        proposalStorage = new ProposalStorage();
+        votingStorage = new VotingStorage();
 
-        // Initialize Interface Contracts
-        unitManager = new UnitManager(address(unitStorage));
+        // initialize interface contracts
+        unitManager = new UnitManager(
+            address(unitStorage),
+            address(mockPropertyOracle) // Pass oracle address to UnitManager
+        );
         treasuryManager = new TreasuryManager(address(treasuryStorage), address(unitManager));
+        votingSystem = new VotingSystem(address(votingStorage),address(unitManager));
+        proposalManager = new ProposalManager(address(proposalStorage), address(unitManager));
 
-        votingSystem = new VotingSystem(address(unitManager));
-        // proposalManager = new ProposalManager(address(proposalStorage));
-        // feedbackManager = new FeedbackManager(address(feedbackStorage));
-                emit Debug("Manager contracts initialized");
-
-        // Set Authorization for Storage Contracts
+        // Set authorization for storage contracts
         unitStorage.addAuthorizedContract(address(unitManager));
         treasuryStorage.addAuthorizedContract(address(treasuryManager));
-      //  proposalStorage.addAuthorizedContract(address(proposalManager));
-      //  feedbackStorage.addAuthorizedContract(address(feedbackManager));
-          emit Debug("Authorization set for manager contracts");
 
-        emit Debug("CondoDAO constructor completed");
+        proposalStorage.addAuthorizedContract(address(proposalManager));
+        proposalManager.setVotingContract(address(votingSystem));
+
+        votingStorage.addAuthorizedContract(address(votingSystem));
+        votingStorage.setUnitManager(address(unitManager));
+        votingSystem.setProposalContract(proposalManager);
+
+        
 
         // Initialize minimum reserve after authorization is set
         treasuryManager.updateMinimumReserve(10 ether);

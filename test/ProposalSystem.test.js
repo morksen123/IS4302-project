@@ -1,114 +1,172 @@
 // Import the ProposalManager and DataTypes contracts
 const ProposalManager = artifacts.require("ProposalManager");
 const ProposalStorage = artifacts.require("ProposalStorage");
+const VotingSystem = artifacts.require("VotingSystem");
 
-contract("ProposalManager", (accounts) => {
-  let proposalManager;
-  let proposalStorage;
+contract("ProposalManager with VotingSystem", (accounts) => {
+  let proposalManager, proposalStorage, votingSystem;
+  const [deployer, proposer, voter1] = accounts;
+  let proposalId;
 
-  const TITLE = "New Gym Proposal";
-  const DESCRIPTION = "Proposal to add a new gym facility";
-  const SUGGESTED_BUDGET = 1000; // Example budget
-  const PROPOSED_SOLUTION = "Purchase new equipment and renovate the area";
+  // let proposalManager, proposalStorage, votingSystem;
+  // const [deployer, proposer, voter1, voter2] = accounts;
+
+  const TITLE = "Community Garden Proposal";
+  const DESCRIPTION = "Proposal to establish a community garden for residents.";
+  const SUGGESTED_BUDGET = 1000;
+  const PROPOSED_SOLUTION = "Identify a location, gather volunteers, and start planting.";
 
   before(async () => {
-    // Deploy ProposalStorage and ProposalManager contracts
-    proposalStorage = await ProposalStorage.new();
-    proposalManager = await ProposalManager.new(proposalStorage.address);
+    // Reuse the deployed contracts from migrations
+    proposalStorage = await ProposalStorage.deployed();
+    proposalManager = await ProposalManager.deployed();
+
+    // Authorize ProposalManager in ProposalStorage
+    await proposalStorage.addAuthorizedContract(proposalManager.address, { from: deployer });
   });
 
-  it("should create a new proposal", async () => {
-    // Call the raiseProposal function with sample data
-    const result = await proposalManager.raiseProposal(
-      TITLE,
-      DESCRIPTION,
-      SUGGESTED_BUDGET,
-      PROPOSED_SOLUTION,
-      { from: accounts[0] }
-    );
-
-    // Check that the ProposalRaised event was emitted
-    assert.equal(result.logs[0].event, "ProposalRaised", "ProposalRaised event should be emitted");
-
-    // Verify proposal data stored in the ProposalStorage contract
-    const proposalId = result.logs[0].args.proposalId.toNumber();
-    const proposal = await proposalStorage.getProposal(proposalId);
-
-    assert.equal(proposal.unitAddress, accounts[0], "unitAddress should be the creator's address");
-    assert.equal(proposal.title, TITLE, "Proposal title should match the input");
-    assert.equal(proposal.description, DESCRIPTION, "Proposal description should match the input");
-    assert.equal(
-      proposal.suggestedBudget.toString(),
-      SUGGESTED_BUDGET.toString(),
-      "Suggested budget should match the input"
-    );
-    assert.equal(
-      proposal.proposedSolution,
-      PROPOSED_SOLUTION,
-      "Proposed solution should match the input"
-    );
-    assert.equal(proposal.status.toString(), "0", "Initial status should be Draft (0)");
+  it("should verify that ProposalManager is authorized in ProposalStorage", async () => {
+    const isAuthorized = await proposalStorage.authorizedContracts(proposalManager.address);
+    assert.equal(isAuthorized, true, "ProposalManager should be authorized in ProposalStorage");
   });
 
-  it("should update the proposal status", async () => {
-    // Create a proposal first
-    const result = await proposalManager.raiseProposal(
-      TITLE,
-      DESCRIPTION,
-      SUGGESTED_BUDGET,
-      PROPOSED_SOLUTION,
-      { from: accounts[0] }
-    );
-    const proposalId = result.logs[0].args.proposalId.toNumber();
+  it("should verify that ProposalManager is authorized", async () => {
+    const isAuthorized = await proposalStorage.authorizedContracts(proposalManager.address);
 
-    // Update the proposal status to OpenForVoting
-    await proposalManager.updateProposalStatus(proposalId, 1); // 1 represents OpenForVoting
-
-    // Verify the status update in the storage contract
-    const updatedProposal = await proposalStorage.getProposal(proposalId);
-    assert.equal(
-      updatedProposal.status.toString(),
-      "1",
-      "Status should be updated to OpenForVoting (1)"
-    );
+    assert.equal(isAuthorized, true, "ProposalManager should be authorized");
   });
 
-  it("should revert if trying to update status of non-existent proposal", async () => {
-    try {
-      await proposalManager.updateProposalStatus(9999, 1); // Trying to update a non-existent proposal
-      assert.fail("Expected revert not received");
-    } catch (error) {
-      assert(error.message.includes("Invalid proposal ID"), "Expected 'Invalid proposal ID' error");
-    }
+  describe("Proposal Creation", () => {
+    it("should create a new proposal", async () => {
+      console.log("proposalmanager", proposalManager.address);
+      console.log("proposer", proposer.address);
+      const result = await proposalManager.raiseProposal(
+        TITLE,
+        DESCRIPTION,
+        SUGGESTED_BUDGET,
+        PROPOSED_SOLUTION,
+        { from: proposer }
+      );
+
+      // Check the ProposalRaised event
+      assert.equal(
+        result.logs[0].event,
+        "ProposalRaised",
+        "ProposalRaised event should be emitted"
+      );
+
+      // Retrieve the proposal from storage
+      proposalId = result.logs[0].args.proposalId.toNumber();
+      const proposal = await proposalStorage.getProposal(proposalId);
+
+      assert.equal(proposal.unitAddress, proposer, "unitAddress should be the creator's address");
+      assert.equal(proposal.title, TITLE, "Proposal title should match the input");
+      assert.equal(
+        proposal.description,
+        DESCRIPTION,
+        "Proposal description should match the input"
+      );
+      assert.equal(
+        proposal.suggestedBudget.toString(),
+        SUGGESTED_BUDGET.toString(),
+        "Suggested budget should match the input"
+      );
+      assert.equal(
+        proposal.proposedSolution,
+        PROPOSED_SOLUTION,
+        "Proposed solution should match the input"
+      );
+      assert.equal(proposal.status.toString(), "0", "Initial status should be Submitted (0)");
+    });
   });
 
-  it("should retrieve the correct proposal data", async () => {
-    // Create a new proposal
-    const result = await proposalManager.raiseProposal(
-      "Community Pool Upgrade",
-      "Upgrade the pool area with new tiles and seating",
-      1500,
-      "Purchase materials and hire contractors",
-      { from: accounts[1] }
-    );
+  describe("Voting Workflow", () => {
+    let proposalId;
 
-    const proposalId = result.logs[0].args.proposalId.toNumber();
-    const proposal = await proposalManager.getProposal(proposalId);
+    before(async () => {
+      // Create a new proposal for voting
+      const result = await proposalManager.raiseProposal(
+        TITLE,
+        DESCRIPTION,
+        SUGGESTED_BUDGET,
+        PROPOSED_SOLUTION,
+        { from: proposer }
+      );
+      proposalId = result.logs[0].args.proposalId.toNumber();
+    });
 
-    assert.equal(
-      proposal.unitAddress,
-      accounts[1],
-      "unitAddress should match the creator's address"
-    );
-    assert.equal(
-      proposal.title,
-      "Community Pool Upgrade",
-      "Title should match the created proposal title"
-    );
-    assert.equal(
-      proposal.suggestedBudget.toString(),
-      "1500",
-      "Suggested budget should match the created proposal's budget"
-    );
+    it("should allow the proposer to start voting", async () => {
+      await proposalManager.startVoting(proposalId, { from: proposer });
+
+      const proposal = await proposalStorage.getProposal(proposalId);
+      assert.equal(proposal.status.toString(), "1", "Proposal status should be VotingOpen (1)");
+    });
+
+    it("should restrict starting voting to the proposer", async () => {
+      try {
+        await proposalManager.startVoting(proposalId, { from: voter1 });
+        assert.fail("Expected an error but did not get one");
+      } catch (error) {
+        assert(error.message.includes("Only the proposer"), "Expected 'Only the proposer' error");
+      }
+    });
+
+    it("should allow a voter to commit a vote", async () => {
+      const secret = "voter1-secret";
+      const voteChoice = 1; // Voting "For"
+      const commitHash = web3.utils.keccak256(web3.utils.encodePacked(voteChoice, secret));
+
+      await votingSystem.commitVote(proposalId, commitHash, { from: voter1 });
+      const commit = await votingSystem.userCommits(voter1, proposalId);
+
+      assert.equal(commit.status, "1", "Vote should be marked as committed");
+    });
+
+    it("should allow a voter to reveal their vote", async () => {
+      const secret = "voter1-secret";
+      const voteChoice = 1; // Voting "For"
+
+      await votingSystem.revealVote(proposalId, voteChoice, secret, { from: voter1 });
+      const proposal = await proposalStorage.getProposal(proposalId);
+
+      assert.equal(proposal.votesFor.toString(), "1", "VotesFor should be incremented");
+    });
+
+    it("should restrict revealing votes with incorrect secrets", async () => {
+      const secret = "wrong-secret";
+      const voteChoice = 2; // Voting "Against"
+
+      try {
+        await votingSystem.revealVote(proposalId, voteChoice, secret, { from: voter2 });
+        assert.fail("Expected an error but did not get one");
+      } catch (error) {
+        assert(error.message.includes("Hash mismatch"), "Expected 'Hash mismatch' error");
+      }
+    });
+
+    it("should allow the proposer to close voting", async () => {
+      await proposalManager.closeVoting(proposalId, { from: proposer });
+
+      const proposal = await proposalStorage.getProposal(proposalId);
+      assert.equal(proposal.status.toString(), "2", "Proposal status should be VotingClosed (2)");
+    });
+
+    it("should restrict committing votes after voting is closed", async () => {
+      try {
+        const commitHash = web3.utils.keccak256(web3.utils.encodePacked(1, "some-secret"));
+        await votingSystem.commitVote(proposalId, commitHash, { from: voter2 });
+        assert.fail("Expected an error but did not get one");
+      } catch (error) {
+        assert(error.message.includes("Voting is not open"), "Expected 'Voting is not open' error");
+      }
+    });
+
+    it("should allow updating proposal status based on votes", async () => {
+      // Update the proposal status to Accepted
+      await proposalManager.updateProposalStatus(proposalId, 3, { from: votingSystem.address }); // 3 = Accepted
+
+      const proposal = await proposalStorage.getProposal(proposalId);
+      assert.equal(proposal.status.toString(), "3", "Proposal status should be Accepted (3)");
+    });
   });
 });

@@ -3,10 +3,11 @@ pragma solidity >=0.5.0 <0.9.0;
 
 import "../types/DataTypes.sol";
 interface IProposalManager {
-    event ProposalRaised(uint256 indexed proposalId, address indexed unitAddress, string title);
-    event ProposalStatusUpdated(uint256 indexed proposalId, DataTypes.ProposalStatus newStatus);
+    // event ProposalRaised(uint256 indexed proposalId, address indexed unitAddress, string title);
+    // event ProposalStatusUpdated(uint256 indexed proposalId, DataTypes.ProposalStatus newStatus);
 
     function raiseProposal(
+                address proposer,
         string calldata title,
         string calldata description,
         uint256 suggestedBudget,
