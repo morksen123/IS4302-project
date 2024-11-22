@@ -90,7 +90,7 @@ contract VotingSystem {
     // 0 for None, 1 for 'For', 2 for 'Against', 4 for 'Abstain'
     function revealVote(uint256 proposalId, uint256 choice, string memory secret) public {
         require(proposalId < proposalManager.getAllProposals().length, "Invalid proposal ID");
-        require(proposalManager.getProposal(proposalId).status == DataTypes.ProposalStatus.VotingOpen, "Voting is not open");
+        require(proposalManager.getProposal(proposalId).status == DataTypes.ProposalStatus.VotingClosed, "Voting still open");
 
         // Get commit from commit storage in vote storage to verify
         VotingStorage.Commit memory userCommit = votingStorage.getUserCommit(msg.sender, proposalId);
