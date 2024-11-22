@@ -25,7 +25,7 @@ contract VotingSystem {
     event VotingClosed();
 
     modifier onlyOwner() {
-        require(msg.sender == owner, "Only owner can perform this action");
+        require(msg.sender == owner, "Only the Owner can perform this action");
         _;
     }
 
@@ -49,7 +49,7 @@ contract VotingSystem {
     }
 
     // Start voting for all currently 
-    function startVoting() external {
+    function startVoting() onlyOwner external {
         uint256 proposalCount = proposalManager.getAllProposals().length;
         for (uint256 i = 0; i < proposalCount; i++) {
             if (proposalManager.getProposal(i).status == DataTypes.ProposalStatus.Submitted) {
@@ -97,12 +97,16 @@ contract VotingSystem {
         require(userCommit.status == VotingStorage.VoteStatus.Committed, "No vote committed or already revealed");
         require(keccak256(abi.encodePacked(choice, secret)) == userCommit.secret, "Hash mismatch");
 
-        VotingStorage.VoteOption voteChoice = _convertToVoteOption(choice);
-        userCommit.choice = voteChoice;
-        userCommit.status = VotingStorage.VoteStatus.Revealed;
+        VotingStorage.VoteOption convChoice = VotingStorage.VoteOption.None;
 
+        if (choice == 1) convChoice = VotingStorage.VoteOption.For;
+        if (choice == 2) convChoice = VotingStorage.VoteOption.Against;
+        if (choice == 3) convChoice = VotingStorage.VoteOption.Abstain;
+
+        userCommit.choice = convChoice;
+        // Update commit status to "Revealed"
+        userCommit.status = VotingStorage.VoteStatus.Revealed;
         votingStorage.setUserCommit(msg.sender, proposalId, userCommit);
-        _updateVotes(proposalId, voteChoice);
 
 
         // Increment vote according to Choice
@@ -115,7 +119,7 @@ contract VotingSystem {
     }
 
     // Closes voting for all currently open proposals 
-    function closeVoting() public {
+    function closeVoting() onlyOwner public {
         for (uint256 i = 0; i < proposalManager.getAllProposals().length; i++) {
 
             // Only close voting for proposal if the proposal is open for voting
@@ -128,9 +132,9 @@ contract VotingSystem {
     }
 
     // tally votes for all proposals (subject to change which proposal to tallyVotes)
-    function tallyVotes() public {
+    function tallyVotes() onlyOwner public {
         for (uint256 i = 0; i < proposalManager.getAllProposals().length;i++) {
-›
+
             // Check proposal status is at VotingClosed
             if (proposalManager.getProposal(i).status == DataTypes.ProposalStatus.VotingClosed) {
 
@@ -169,12 +173,7 @@ contract VotingSystem {
         return proposalManager.getProposal(proposalId);
     }
 
-    function getUserCommit(address voter, uint256 proposalId)
-        external
-        view
-        validProposal(proposalId)
-        returns (VotingStorage.Commit memory)
-    {
+    function getUserCommit(address voter, uint256 proposalId) external view returns (VotingStorage.Commit memory) {
         return votingStorage.getUserCommit(voter, proposalId);
     }
 
