@@ -18,19 +18,6 @@ contract VotingStorage is DataStorageBase {
     // enum ProposalStatus { Submitted, VotingOpen, VotingClosed, Accepted, Rejected }
     enum VoteStatus { None, Committed, Revealed }
 
-    // struct Proposal {
-    //     address proposer;
-    //     string title;
-    //     string description;
-    //     string solution;
-    //     uint256 budget;
-    //     DataTypes.ProposalStatus status;
-    //     uint256 votesFor;
-    //     uint256 votesAgainst;
-    //     uint256 votesAbstained;
-    //     uint256 totalVotes;
-    // }
-
     struct Commit {
         VoteOption choice;
         bytes32 secret;
@@ -38,7 +25,6 @@ contract VotingStorage is DataStorageBase {
     }
 
     // Storage variables
-    // DataTypes.Proposal[] public proposals;
     mapping(address => mapping(uint256 => Commit)) public userCommits;
     IUnitManager public unitManager;
 
@@ -65,14 +51,6 @@ contract VotingStorage is DataStorageBase {
     function setUnitManager(address _unitManager) public {
         unitManager = IUnitManager(_unitManager);
     }
-
-    // function pushProposal(DataTypes.Proposal memory proposal) public {
-    //     proposals.push(proposal);
-    // }
-
-    // function updateProposal(uint256 proposalId, DataTypes.Proposal memory proposal) public {
-    //     proposals[proposalId] = proposal;
-    // }
 
     function setUserCommit(address user, uint256 proposalId, Commit memory commit) public {
         userCommits[user][proposalId] = commit;

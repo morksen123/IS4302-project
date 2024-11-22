@@ -19,115 +19,70 @@ contract VotingSystem {
     IUnitManager private unitManager;
     address public owner;
 
-    constructor(address _votingStorage, address _unitManager) public {
-        require(_votingStorage != address(0), "Invalid vote storage address");
-        require(_unitManager != address(0), "Invalid unit manager address");
-        owner = msg.sender;
-
-        votingStorage = VotingStorage(_votingStorage);
-        unitManager = IUnitManager(_unitManager);
-    }
+    event VoteCommitted(uint256 indexed proposalId, address indexed voter, bytes32 commitHash);
+    event VoteRevealed(uint256 indexed proposalId, address indexed voter, VotingStorage.VoteOption choice);
+    event VotingStarted();
+    event VotingClosed();
 
     modifier onlyOwner() {
         require(msg.sender == owner, "Only the Owner can perform this action");
         _;
     }
 
-    function getOwner() public view returns (address) {
-        return owner;
+    constructor(address _votingStorage, address _unitManager) public {
+        require(_votingStorage != address(0), "Invalid vote storage address");
+        require(_unitManager != address(0), "Invalid unit manager address");
+
+        owner = msg.sender;
+        votingStorage = VotingStorage(_votingStorage);
+        unitManager = IUnitManager(_unitManager);
     }
 
-    //Set ProposalManager 
-
-    function setProposalContract(ProposalManager _proposalManager) external {
+    function setProposalManager(ProposalManager _proposalManager) external onlyOwner {
         require(address(proposalManager) == address(0), "Proposal manager already set");
         proposalManager = _proposalManager;
     }
 
-    // Set TreasuryManager
-    function setTreasuryManager(TreasuryManager _treasuryManager) external {
+    function setTreasuryManager(TreasuryManager _treasuryManager) external onlyOwner {
         require(address(treasuryManager) == address(0), "Treasury manager already set");
         treasuryManager = _treasuryManager;
     }
-    event VoteCommitted(uint256 proposalId, address indexed voter, bytes32 commitHash);
-    event VoteRevealed(uint256 proposalId, address indexed voter, VotingStorage.VoteOption choice);
 
-    event VotingStarted();
-    event VotingClosed();
-
-    // function createProposal(
-    //     string memory _title,
-    //     string memory _description,
-    //     string memory _solution,
-    //     uint256 _budget
-    // ) public {
-    //     VotingStorage.Proposal memory newProposal = VotingStorage.Proposal({
-    //         proposer: msg.sender,
-    //         title: _title,
-    //         description: _description,
-    //         solution: _solution,
-    //         budget: _budget,
-    //         status: VotingStorage.ProposalStatus.Submitted,
-    //         votesFor: 0,
-    //         votesAgainst: 0,
-    //         votesAbstained: 0,
-    //         totalVotes: 0
-    //     });
-
-    //     votingStorage.pushProposal(newProposal);
-    //     emit ProposalCreated(votingStorage.getProposalsLength() - 1, msg.sender, _title);
-    // }
-
-    // Open Voting for all valid proposals
-    function startVoting() public {
-        // require(proposalId < proposalStorage.getAllProposals().length, "Invalid proposal ID");
-        // DataTypes.Proposal memory proposal = proposalStorage.getProposal(proposalId);
-        // proposal.status = DataTypes.ProposalStatus.VotingOpen;
-        for (uint256 i = 0; i < proposalManager.getAllProposals().length; i++) {
-
-            // Only open voting for proposal if the proposal is "submitted"
+    // Start voting for all currently 
+    function startVoting() external {
+        uint256 proposalCount = proposalManager.getAllProposals().length;
+        for (uint256 i = 0; i < proposalCount; i++) {
             if (proposalManager.getProposal(i).status == DataTypes.ProposalStatus.Submitted) {
                 proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.VotingOpen);
             }
         }
-
-        emit VotingStarted(); // Start Voting
+        emit VotingStarted();
     }
 
     // Allow users to commit their vote to the selected proposal
     // Choices: 0 for None, 1 for 'For', 2 for 'Against', 4 for 'Abstain'
     // Commit hashes are created by users using keccak256 SHA-3 standards by encoding (their choice + secret)
-    function commitVote(uint256 proposalId, bytes32 commitHash) public {
-        require(proposalId < proposalManager.getAllProposals().length, "Invalid proposal ID");
-        require(proposalManager.getProposal(proposalId).status == DataTypes.ProposalStatus.VotingOpen, "Voting is not open");
-        require(votingStorage.getUserCommit(msg.sender, proposalId).status == VotingStorage.VoteStatus.None, "Already committed a vote");
+    function commitVote(uint256 proposalId, bytes32 commitHash) external {
+        DataTypes.Proposal memory proposal = proposalManager.getProposal(proposalId);
+        require(proposal.status == DataTypes.ProposalStatus.VotingOpen, "Voting is not open");
 
-        require(votingStorage.getUnitManager().isRegistered(msg.sender), "Unit not registered");
-        require(votingStorage.getUnitManager().hasVotingRights(msg.sender), "Unit does not have voting rights");
+        VotingStorage.Commit memory existingCommit = votingStorage.getUserCommit(msg.sender, proposalId);
+        require(existingCommit.status == VotingStorage.VoteStatus.None, "Vote already committed");
 
-        VotingStorage.Commit memory newCommit = VotingStorage.Commit({
-            choice: VotingStorage.VoteOption.None,
-            secret: commitHash,
-            status: VotingStorage.VoteStatus.Committed
-        });
-        
-        votingStorage.setUserCommit(msg.sender, proposalId, newCommit);
+        require(unitManager.isRegistered(msg.sender), "Unit not registered");
+        require(unitManager.hasVotingRights(msg.sender), "Unit does not have voting rights");
+
+        votingStorage.setUserCommit(
+            msg.sender,
+            proposalId,
+            VotingStorage.Commit({
+                choice: VotingStorage.VoteOption.None,
+                secret: commitHash,
+                status: VotingStorage.VoteStatus.Committed
+            })
+        );
+
         emit VoteCommitted(proposalId, msg.sender, commitHash);
-    }
-
-    function closeVoting() public {
-        // require(proposalId < proposalStorage.getAllProposals().length, "Invalid proposal ID");
-        // DataTypes.Proposal memory proposal = proposalStorage.getProposal(proposalId);
-        // proposal.status = DataTypes.ProposalStatus.VotingOpen;
-        for (uint256 i = 0; i < proposalManager.getAllProposals().length; i++) {
-
-            // Only close voting for proposal if the proposal is open for voting
-            if (proposalManager.getProposal(i).status == DataTypes.ProposalStatus.VotingOpen) {
-                proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.VotingClosed);
-            }
-        }
-
-        emit VotingStarted(); // Start Voting
     }
 
     // Users to reveal vote upon voting end
@@ -153,7 +108,6 @@ contract VotingSystem {
         userCommit.status = VotingStorage.VoteStatus.Revealed;
         votingStorage.setUserCommit(msg.sender, proposalId, userCommit);
 
-        // DataTypes.Proposal memory proposal = proposalStorage.getProposal(proposalId);
 
         // Increment vote according to Choice
         if (choice == 1) proposalManager.incrementVotes(proposalId, 1,0,0);
@@ -164,46 +118,57 @@ contract VotingSystem {
         emit VoteRevealed(proposalId, msg.sender, convChoice);
     }
 
+    // Closes voting for all currently open proposals 
+    function closeVoting() public {
+        for (uint256 i = 0; i < proposalManager.getAllProposals().length; i++) {
+
+            // Only close voting for proposal if the proposal is open for voting
+            if (proposalManager.getProposal(i).status == DataTypes.ProposalStatus.VotingOpen) {
+                proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.VotingClosed);
+            }
+        }
+
+        emit VotingStarted(); // Start Voting
+    }
+
     // tally votes for all proposals (subject to change which proposal to tallyVotes)
     function tallyVotes() public {
         for (uint256 i = 0; i < proposalManager.getAllProposals().length;i++) {
 
-            // Check if vote hits minimum quorum of 30%
-            uint256 totalVotes = (proposalManager.getVotesFor(i) + proposalManager.getVotesAgainst(i) + proposalManager.getVotesAbstained(i)) * 1000;
-            uint256 percentageVotes = ((proposalManager.getVotesFor(i) + proposalManager.getVotesAgainst(i)) * 1000 ) / totalVotes;
+            // Check proposal status is at VotingClosed
+            if (proposalManager.getProposal(i).status == DataTypes.ProposalStatus.VotingClosed) {
 
-            // Reject proposal if votes do not pass minimum quorum
-            if (percentageVotes < 300) {
-                proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Rejected);
-                continue;
-            }
+                uint256 totalVotes = (proposalManager.getVotesFor(i) + proposalManager.getVotesAgainst(i) + proposalManager.getVotesAbstained(i)) * 1000;
 
-            // >50% needed to pass 
-            if (proposalManager.getVotesFor(i) > proposalManager.getVotesAgainst(i)) {
+                // Check if vote hits minimum quorum of 30%
+                uint256 percentageVotes = ((proposalManager.getVotesFor(i) + proposalManager.getVotesAgainst(i)) * 1000 ) / totalVotes;
 
-                // Check if the suggested budget is within budget, if not reject
-                if(treasuryManager.getProposalBudget() < proposalManager.getProposal(i).suggestedBudget) {
+                // Reject proposal if votes do not pass minimum quorum 30%
+                if (percentageVotes < 300) {
                     proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Rejected);
                     continue;
                 }
 
-                //Proposal passes and status is updated to Accepted
-                proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Accepted);
+                // >50% needed to accept proposal 
+                if (proposalManager.getVotesFor(i) > proposalManager.getVotesAgainst(i)) {
 
-                // Funds are disbursed to proposal
-                
-            } else {
-                proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Rejected);
+                    // Check if the suggested budget is within budget, if not reject
+                    // if(treasuryManager.getBalance() < proposalManager.getProposal(i).suggestedBudget) {
+                    //     proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Rejected);
+                    //     continue;
+                    // }
+
+                    //Proposal passes and status is updated to Accepted
+                    proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Accepted);
+                    
+                } else {
+                    proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Rejected);
+                }
+
             }
-
         }
     }
 
-    function orderProposals() public view {
-        proposalManager.getAllProposals();
-    }
-
-    
     function getProposal(uint256 proposalId) external view returns (DataTypes.Proposal memory) {
         return votingStorage.getProposal(proposalId);
     }
@@ -211,7 +176,5 @@ contract VotingSystem {
     function getUserCommit(address voter, uint256 proposalId) external view returns (VotingStorage.Commit memory) {
         return votingStorage.getUserCommit(voter, proposalId);
     }
-
-    // function addAuthorizedContract(address UnitManager) external returns ()
 
 }
