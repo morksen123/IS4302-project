@@ -11,6 +11,7 @@ contract UnitStorage is DataStorageBase {
     mapping(address => DataTypes.Unit) private units;
     mapping(address => uint256) private managementFeePayments;
     mapping(address => uint256) private lastPaymentDates;
+    address[] private registeredUnitAddresses;
 
     // Getters
     function getUnit(
@@ -25,9 +26,18 @@ contract UnitStorage is DataStorageBase {
         return lastPaymentDates[unitAddress];
     }
 
+    function getRegisteredUnits() external view onlyAuthorized returns (address[] memory) {
+        return registeredUnitAddresses;
+    }
+
     // Setters
     function setUnit(address unitAddress, DataTypes.Unit calldata unit) external onlyAuthorized {
+        bool wasRegistered = units[unitAddress].registered;
         units[unitAddress] = unit;
+        
+        if (!wasRegistered && unit.registered) {
+            registeredUnitAddresses.push(unitAddress);
+        }
     }
 
     // update payment history

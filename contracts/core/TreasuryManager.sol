@@ -1,24 +1,30 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.0 <0.9.0;
 
+import "../interfaces/IUnitManager.sol";
 import "../interfaces/ITreasuryManager.sol";
 import "../storage/TreasuryStorage.sol";
-import "../interfaces/IUnitManager.sol";
+import "../storage/ProposalStorage.sol";
 
 contract TreasuryManager is ITreasuryManager {
-    TreasuryStorage private treasuryStorage;
     address private owner;
-    uint256 private constant INITIAL_MINIMUM_RESERVE = 10 ether; // Example: 10 ETH
-
+    TreasuryStorage private treasuryStorage;
+    ProposalStorage private proposalStorage;
     IUnitManager private unitManager;
     uint256 private constant COLLECTION_INTERVAL = 30 days;
     mapping(address => uint256) private lastCollectionTime;
 
-    constructor(address storageAddress, address unitManagerAddress) {
-        require(storageAddress != address(0), "Invalid storage address");
+    constructor(
+        address treasuryStorageAddress,
+        address proposalStorageAddress,
+        address unitManagerAddress
+    ) {
+        require(treasuryStorageAddress != address(0), "Invalid treasury storage address");
+        require(proposalStorageAddress != address(0), "Invalid proposal storage address");
         require(unitManagerAddress != address(0), "Invalid unit manager address");
-        
-        treasuryStorage = TreasuryStorage(storageAddress);
+
+        treasuryStorage = TreasuryStorage(treasuryStorageAddress);
+        proposalStorage = ProposalStorage(proposalStorageAddress);
         unitManager = IUnitManager(unitManagerAddress);
         owner = msg.sender;
     }
@@ -33,16 +39,6 @@ contract TreasuryManager is ITreasuryManager {
         return address(this).balance;
     }
 
-    function getMinimumReserve() external view returns (uint256) {
-        return treasuryStorage.getMinimumReserve();
-    }
-
-    function getProposalBudget() external view returns (uint256) {
-        uint256 availableFunds = address(this).balance;
-        uint256 minimumReserve = treasuryStorage.getMinimumReserve();
-        return availableFunds > minimumReserve ? availableFunds - minimumReserve : 0;
-    }
-
     // State-Changing Functions
     function disburseFunds(
         address payable to,
@@ -52,8 +48,8 @@ contract TreasuryManager is ITreasuryManager {
         require(to != address(0), "Invalid recipient address");
         require(amount > 0, "Amount must be greater than 0");
         require(
-            address(this).balance - amount >= treasuryStorage.getMinimumReserve(),
-            "Insufficient funds above minimum reserve"
+            proposalStorage.getProposal(proposalId).status == DataTypes.ProposalStatus.Accepted,
+            "Proposal must be accepted"
         );
 
         treasuryStorage.recordDisbursement(proposalId, amount);
@@ -63,46 +59,42 @@ contract TreasuryManager is ITreasuryManager {
         emit FundsDisbursed(to, amount, proposalId);
     }
 
-    function updateMinimumReserve(uint256 newReserve) external onlyOwner {
-        require(newReserve > 0, "Minimum reserve must be greater than 0");
-        treasuryStorage.setMinimumReserve(newReserve);
-    }
-
-    function emergencyWithdraw(address payable to, uint256 amount) external onlyOwner {
-        require(to != address(0), "Invalid recipient address");
-        require(amount > 0 && amount <= address(this).balance, "Invalid amount");
-
-        (bool success, ) = to.call{value: amount}("");
-        require(success, "Transfer failed");
-
-        emit EmergencyWithdrawal(to, amount);
-    }
-
     // Function to receive ETH
     receive() external payable {
         require(msg.value > 0, "Cannot send 0 ETH");
         emit FundsReceived(msg.sender, msg.value);
     }
 
-    // Collect management fees from all units
-    function collectManagementFees(address[] calldata units) external onlyOwner {
-        for (uint i = 0; i < units.length; i++) {
-            address unit = units[i];
-            if (block.timestamp >= lastCollectionTime[unit] + COLLECTION_INTERVAL) {
-                uint256 fee = unitManager.getManagementFee(unit);
-                require(fee > 0, "No fee due");
+    function collectManagementFees() external onlyOwner {
+        // Get all registered units through UnitManager
+        address[] memory units = unitManager.getRegisteredUnits();
 
-                // Record collection time
-                lastCollectionTime[unit] = block.timestamp;
+        for (uint256 i = 0; i < units.length; i++) {
+            address unitAddress = units[i];
 
-                // Try to collect the fee by calling payManagementFee
-                try unitManager.payManagementFee{value: fee}() {
-                    emit FeeCollected(unit, fee, true);
+            // Skip if unit has collected within the collection interval
+            if (block.timestamp - lastCollectionTime[unitAddress] < COLLECTION_INTERVAL) {
+                continue;
+            }
+
+            // Calculate total fees (management fee + late fees)
+            uint256 managementFee = unitManager.getManagementFee(unitAddress);
+            uint256 lateFees = unitManager.getLateFee(unitAddress);
+            uint256 totalFees = managementFee + lateFees;
+
+            // Attempt to collect fees
+            bool success = false;
+            if (totalFees > 0) {
+                // Call the unit's payManagementFee function
+                try unitManager.payManagementFee{value: totalFees}() {
+                    success = true;
+                    lastCollectionTime[unitAddress] = block.timestamp;
                 } catch {
-                    // If collection fails, record as unsuccessful
-                    emit FeeCollected(unit, fee, false);
+                    success = false;
                 }
             }
+
+            emit FeeCollected(unitAddress, totalFees, success);
         }
     }
 }

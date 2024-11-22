@@ -18,6 +18,7 @@ interface IUnitManager {
     function hasVotingRights(address unitAddress) external view returns (bool);
     function getBookingQuota(address unitAddress) external view returns (uint256);
     function getAGMParticipation(address unitAddress) external view returns (bool);
+    function getRegisteredUnits() external view returns (address[] memory);
 
     // State-Changing Functions
     function registerUnit(address unitAddress) external;
