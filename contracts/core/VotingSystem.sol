@@ -152,10 +152,10 @@ contract VotingSystem is IVotingSystem {
                 if (proposalManager.getVotesFor(i) > proposalManager.getVotesAgainst(i)) {
 
                     // Check if the suggested budget is within budget, if not reject
-                    // if(treasuryManager.getBalance() < proposalManager.getProposal(i).suggestedBudget) {
-                    //     proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Rejected);
-                    //     continue;
-                    // }
+                    if(treasuryManager.getBalance() < proposalManager.getProposal(i).suggestedBudget) {
+                        proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Rejected);
+                        continue;
+                    }
 
                     //Proposal passes and status is updated to Accepted
                     proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Accepted);
