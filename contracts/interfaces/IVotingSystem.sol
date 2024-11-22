@@ -1,27 +1,30 @@
-// defines the contract interface
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.0 <0.9.0;
 
+import "../core/ProposalManager.sol";
+import "../core/TreasuryManager.sol";
+import "../interfaces/IUnitManager.sol";
+import "../storage/VotingStorage.sol";
+import "../storage/base/DataStorageBase.sol";
+
 interface IVotingSystem {
-    // Events
-    event VotingSessionStarted(uint256 startTime, bytes32[] proposalNames);
-    event VotingSessionEnded(uint256 endTime);
-    event VoteCast(address indexed voter, uint256 proposalIndex);
-    event VotingRightsGranted(address indexed unitAddress);
-    event VotingRightsRevoked(address indexed unitAddress);
+    // Getters
+    function votingStorage() external view returns (VotingStorage);
+    function proposalManager() external view returns (ProposalManager);
+    function treasuryManager() external view returns (TreasuryManager);
+    function owner() external view returns (address);
 
-    // View Functions
-    function votingActive() external view returns (bool);
-    function lastVotingYear() external view returns (uint256);
-    function getWinnerName() external view returns (bytes32);
-    function getProposalCount() external view returns (uint256);
-    function getProposalName(uint proposalIndex) external view returns (bytes32);
-    function getVoteCount(uint proposalIndex) external view returns (uint256);
+    // Functions
+    function setProposalManager(ProposalManager _proposalManager) external;
+    function setTreasuryManager(TreasuryManager _treasuryManager) external;
 
-    // State-Changing Functions
-    function startVotingSession(bytes32[] calldata proposalNames) external;
-    function endVotingSession() external;
-    function grantVotingRights(address unitAddress) external;
-    function revokeVotingRights(address unitAddress) external;
-    function vote(uint proposalIndex) external;
+    function startVoting() external;
+    function commitVote(uint256 proposalId, bytes32 commitHash) external;
+    function revealVote(uint256 proposalId, uint256 choice, string calldata secret) external;
+
+    function closeVoting() external;
+    function tallyVotes() external;
+
+    function getProposal(uint256 proposalId) external view returns (DataTypes.Proposal memory);
+    function getUserCommit(address voter, uint256 proposalId) external view returns (VotingStorage.Commit memory);
 }

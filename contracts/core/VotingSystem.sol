@@ -11,7 +11,7 @@ import "../interfaces/IUnitManager.sol";
 import "../storage/base/DataStorageBase.sol";
 import "../storage/VotingStorage.sol";
 
-contract VotingSystem {
+contract VotingSystem is IVotingSystem {
     VotingStorage public votingStorage;
     ProposalManager public proposalManager;
     TreasuryManager public treasuryManager;

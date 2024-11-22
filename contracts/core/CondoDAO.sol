@@ -50,10 +50,10 @@ contract CondoDAO {
             address(unitStorage),
             address(mockPropertyOracle)
         );
-        treasuryManager = new TreasuryManager(address(treasuryStorage), address(unitManager));
+        treasuryManager = new TreasuryManager(address(treasuryStorage), address(proposalManager), address(unitManager));
         votingSystem = new VotingSystem(address(votingStorage),address(unitManager));
         proposalManager = new ProposalManager(address(proposalStorage), address(unitManager));
-        votingSystem = new VotingSystem(address(unitManager));
+        votingSystem = new VotingSystem(address(votingStorage), address(unitManager));
         facilityManager = new FacilityManager(address(facilityStorage), address(unitManager));
 
         // Set authorization for storage contracts
@@ -66,7 +66,7 @@ contract CondoDAO {
 
         votingStorage.addAuthorizedContract(address(votingSystem));
         votingStorage.setUnitManager(address(unitManager));
-        votingSystem.setProposalContract(proposalManager);
+        votingSystem.setProposalManager(proposalManager);
 
         
 
@@ -81,6 +81,6 @@ contract CondoDAO {
         
 
         // Initialize minimum reserve after authorization is set
-        treasuryManager.updateMinimumReserve(10 ether);
+        // treasuryManager.updateMinimumReserve(10 ether);
     }
 }
