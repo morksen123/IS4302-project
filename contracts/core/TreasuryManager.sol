@@ -6,18 +6,24 @@ import "../storage/TreasuryStorage.sol";
 import "../interfaces/IUnitManager.sol";
 
 contract TreasuryManager is ITreasuryManager {
-    TreasuryStorage private treasuryStorage;
     address private owner;
-
+    TreasuryStorage private treasuryStorage;
+    ProposalStorage private proposalStorage;
     IUnitManager private unitManager;
     uint256 private constant COLLECTION_INTERVAL = 30 days;
     mapping(address => uint256) private lastCollectionTime;
 
-    constructor(address storageAddress, address unitManagerAddress) {
-        require(storageAddress != address(0), "Invalid storage address");
+    constructor(
+        address treasuryStorageAddress,
+        address proposalStorageAddress,
+        address unitManagerAddress
+    ) {
+        require(treasuryStorageAddress != address(0), "Invalid treasury storage address");
+        require(proposalStorageAddress != address(0), "Invalid proposal storage address");
         require(unitManagerAddress != address(0), "Invalid unit manager address");
 
-        treasuryStorage = TreasuryStorage(storageAddress);
+        treasuryStorage = TreasuryStorage(treasuryStorageAddress);
+        proposalStorage = ProposalStorage(proposalStorageAddress);
         unitManager = IUnitManager(unitManagerAddress);
         owner = msg.sender;
     }
@@ -41,8 +47,8 @@ contract TreasuryManager is ITreasuryManager {
         require(to != address(0), "Invalid recipient address");
         require(amount > 0, "Amount must be greater than 0");
         require(
-            address(this).balance - amount >= treasuryStorage.getMinimumReserve(),
-            "Insufficient funds above minimum reserve"
+            proposalStorage.getProposal(proposalId).status == DataTypes.ProposalStatus.Accepted,
+            "Proposal must be accepted"
         );
 
         treasuryStorage.recordDisbursement(proposalId, amount);
