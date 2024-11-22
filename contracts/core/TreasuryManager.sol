@@ -1,9 +1,10 @@
 // SPDX-License-Identifier: MIT
 pragma solidity >=0.5.0 <0.9.0;
 
+import "../interfaces/IUnitManager.sol";
 import "../interfaces/ITreasuryManager.sol";
 import "../storage/TreasuryStorage.sol";
-import "../interfaces/IUnitManager.sol";
+import "../storage/ProposalStorage.sol";
 
 contract TreasuryManager is ITreasuryManager {
     address private owner;
