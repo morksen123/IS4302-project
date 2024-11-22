@@ -134,7 +134,7 @@ contract VotingSystem {
     // tally votes for all proposals (subject to change which proposal to tallyVotes)
     function tallyVotes() public {
         for (uint256 i = 0; i < proposalManager.getAllProposals().length;i++) {
-
+›
             // Check proposal status is at VotingClosed
             if (proposalManager.getProposal(i).status == DataTypes.ProposalStatus.VotingClosed) {
 
@@ -170,7 +170,7 @@ contract VotingSystem {
     }
 
     function getProposal(uint256 proposalId) external view returns (DataTypes.Proposal memory) {
-        return votingStorage.getProposal(proposalId);
+        return proposalManager.getProposal(proposalId);
     }
 
     function getUserCommit(address voter, uint256 proposalId) external view returns (VotingStorage.Commit memory) {
