@@ -4,38 +4,34 @@ pragma solidity >=0.5.0 <0.9.0;
 import "../types/DataTypes.sol";
 import "./base/DataStorageBase.sol";
 
-contract FeedbackStorage is DataStorageBase  {
+contract FeedbackStorage is DataStorageBase {
     DataTypes.Feedback[] private feedbacks;
 
-    // Store new feedback and return its ID
-    function storeFeedback(DataTypes.Feedback memory feedback) external returns (uint256) {
+    /// @notice Store new feedback and return its ID
+    /// @param feedback The feedback to store
+    /// @return feedbackId The ID of the newly stored feedback
+    function storeFeedback(DataTypes.Feedback memory feedback) external onlyAuthorized returns (uint256) {
         feedbacks.push(feedback);
         return feedbacks.length - 1; // Return the ID of the newly stored feedback
     }
 
-    // Retrieve feedback by its ID
-    function getFeedback(uint256 feedbackId) external view returns (DataTypes.Feedback memory) {
+    /// @notice Retrieve feedback by its ID
+    /// @param feedbackId The ID of the feedback to retrieve
+    /// @return Feedback The feedback data
+    function getFeedback(uint256 feedbackId) external view onlyAuthorized returns (DataTypes.Feedback memory) {
         require(feedbackId < feedbacks.length, "Invalid feedback ID");
         return feedbacks[feedbackId];
     }
 
-    // Update the status of feedback by its ID
-    // function updateFeedbackStatus(uint256 feedbackId, DataTypes.FeedbackStatus newStatus) external {
-    //     require(feedbackId < feedbacks.length, "Invalid feedback ID");
-    //     feedbacks[feedbackId].status = newStatus;
-    //  }
-
-    // Get the total count of feedbacks
+    /// @notice Get the total count of feedbacks
+    /// @return count The total number of feedbacks stored
     function getFeedbackCount() external view returns (uint256) {
         return feedbacks.length;
-        
     }
 
-   /// @notice Retrieves all feedback stored in the contract
-    /// @return Array of all feedbacks
-    function getAllFeedback() external view returns (DataTypes.Feedback[] memory) {
+    /// @notice Retrieve all feedback stored in the contract
+    /// @return feedbacks Array of all feedbacks
+    function getAllFeedback() external view onlyAuthorized returns (DataTypes.Feedback[] memory) {
         return feedbacks;
     }
 }
-
-  

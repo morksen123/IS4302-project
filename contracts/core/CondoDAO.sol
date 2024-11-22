@@ -25,6 +25,7 @@ contract CondoDAO {
     ProposalManager public proposalManager;
     FeedbackManager public feedbackManager;
     FacilityManager public facilityManager;
+
     MockPropertyOracle public mockPropertyOracle;
 
     // data
@@ -33,6 +34,7 @@ contract CondoDAO {
     VotingStorage private votingStorage;
     ProposalStorage private proposalStorage;
     FacilityStorage private facilityStorage;
+
 
     constructor() {
         // initialize data storage
@@ -65,6 +67,16 @@ contract CondoDAO {
         votingStorage.addAuthorizedContract(address(votingSystem));
         votingStorage.setUnitManager(address(unitManager));
         votingSystem.setProposalContract(proposalManager);
+
+        
+
+        proposalStorage.addAuthorizedContract(address(proposalManager));
+        proposalManager.setVotingContract(address(votingSystem));
+
+        votingStorage.addAuthorizedContract(address(votingSystem));
+        votingStorage.setUnitManager(address(unitManager));
+        votingSystem.setProposalManager(proposalManager);
+        votingSystem.setTreasuryManager(treasuryManager);
 
         
 
