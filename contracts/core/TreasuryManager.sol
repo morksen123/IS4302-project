@@ -8,7 +8,6 @@ import "../interfaces/IUnitManager.sol";
 contract TreasuryManager is ITreasuryManager {
     TreasuryStorage private treasuryStorage;
     address private owner;
-    uint256 private constant INITIAL_MINIMUM_RESERVE = 10 ether; // Example: 10 ETH
 
     IUnitManager private unitManager;
     uint256 private constant COLLECTION_INTERVAL = 30 days;
@@ -17,7 +16,7 @@ contract TreasuryManager is ITreasuryManager {
     constructor(address storageAddress, address unitManagerAddress) {
         require(storageAddress != address(0), "Invalid storage address");
         require(unitManagerAddress != address(0), "Invalid unit manager address");
-        
+
         treasuryStorage = TreasuryStorage(storageAddress);
         unitManager = IUnitManager(unitManagerAddress);
         owner = msg.sender;
@@ -31,16 +30,6 @@ contract TreasuryManager is ITreasuryManager {
     // View Functions
     function getBalance() external view returns (uint256) {
         return address(this).balance;
-    }
-
-    function getMinimumReserve() external view returns (uint256) {
-        return treasuryStorage.getMinimumReserve();
-    }
-
-    function getProposalBudget() external view returns (uint256) {
-        uint256 availableFunds = address(this).balance;
-        uint256 minimumReserve = treasuryStorage.getMinimumReserve();
-        return availableFunds > minimumReserve ? availableFunds - minimumReserve : 0;
     }
 
     // State-Changing Functions
@@ -61,21 +50,6 @@ contract TreasuryManager is ITreasuryManager {
         require(success, "Transfer failed");
 
         emit FundsDisbursed(to, amount, proposalId);
-    }
-
-    function updateMinimumReserve(uint256 newReserve) external onlyOwner {
-        require(newReserve > 0, "Minimum reserve must be greater than 0");
-        treasuryStorage.setMinimumReserve(newReserve);
-    }
-
-    function emergencyWithdraw(address payable to, uint256 amount) external onlyOwner {
-        require(to != address(0), "Invalid recipient address");
-        require(amount > 0 && amount <= address(this).balance, "Invalid amount");
-
-        (bool success, ) = to.call{value: amount}("");
-        require(success, "Transfer failed");
-
-        emit EmergencyWithdrawal(to, amount);
     }
 
     // Function to receive ETH
