@@ -4,6 +4,8 @@ pragma solidity >=0.5.0 <0.9.0;
 import "../core/UnitManager.sol";
 import "../core/TreasuryManager.sol";
 import "../core/VotingSystem.sol";
+import "../core/FacilityManager.sol";
+import "../oracles/MockPropertyOracle.sol";
 
 import "../storage/UnitStorage.sol";
 import "../storage/TreasuryStorage.sol";
@@ -13,6 +15,7 @@ import "../storage/FeedbackStorage.sol";
 import "../oracles/MockPropertyOracle.sol";
 import "../core/ProposalManager.sol";
 import "../core/FeedbackManager.sol";
+import "../storage/FacilityStorage.sol";
 
 contract CondoDAO {
     // interfaces
@@ -21,6 +24,7 @@ contract CondoDAO {
     VotingSystem public votingSystem;
     ProposalManager public proposalManager;
     FeedbackManager public feedbackManager;
+    FacilityManager public facilityManager;
     MockPropertyOracle public mockPropertyOracle;
 
     // data
@@ -28,26 +32,32 @@ contract CondoDAO {
     TreasuryStorage private treasuryStorage;
     VotingStorage private votingStorage;
     ProposalStorage private proposalStorage;
+    FacilityStorage private facilityStorage;
 
-    constructor() public {
+    constructor() {
         // initialize data storage
         unitStorage = new UnitStorage();
         treasuryStorage = new TreasuryStorage();
         proposalStorage = new ProposalStorage();
         votingStorage = new VotingStorage();
+        facilityStorage = new FacilityStorage();
 
         // initialize interface contracts
+        mockPropertyOracle = new MockPropertyOracle();
         unitManager = new UnitManager(
             address(unitStorage),
-            address(mockPropertyOracle) // Pass oracle address to UnitManager
+            address(mockPropertyOracle)
         );
         treasuryManager = new TreasuryManager(address(treasuryStorage), address(unitManager));
         votingSystem = new VotingSystem(address(votingStorage),address(unitManager));
         proposalManager = new ProposalManager(address(proposalStorage), address(unitManager));
+        votingSystem = new VotingSystem(address(unitManager));
+        facilityManager = new FacilityManager(address(facilityStorage), address(unitManager));
 
         // Set authorization for storage contracts
         unitStorage.addAuthorizedContract(address(unitManager));
         treasuryStorage.addAuthorizedContract(address(treasuryManager));
+        facilityStorage.addAuthorizedContract(address(facilityManager));
 
         proposalStorage.addAuthorizedContract(address(proposalManager));
         proposalManager.setVotingContract(address(votingSystem));
