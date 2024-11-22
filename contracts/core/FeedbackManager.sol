@@ -4,20 +4,31 @@ pragma solidity >=0.5.0 <0.9.0;
 import "../interfaces/IFeedbackManager.sol";
 import "../storage/FeedbackStorage.sol";
 import "../types/DataTypes.sol";
+import "../interfaces/IUnitManager.sol";
 
 contract FeedbackManager is IFeedbackManager {
     FeedbackStorage private feedbackStorage;
+    IUnitManager private unitManager;
 
-    /// @notice Constructor initializes the contract with the address of FeedbackStorage
+    /// @notice Constructor initializes the contract with the addresses of FeedbackStorage and UnitManager
     /// @param _feedbackStorage The address of the deployed FeedbackStorage contract
-    constructor(address _feedbackStorage) {
+    /// @param _unitManager The address of the deployed UnitManager contract
+    constructor(address _feedbackStorage, address _unitManager) {
         require(_feedbackStorage != address(0), "Invalid FeedbackStorage address");
+        require(_unitManager != address(0), "Invalid UnitManager address");
         feedbackStorage = FeedbackStorage(_feedbackStorage);
+        unitManager = IUnitManager(_unitManager);
+    }
+
+    /// @notice Modifier to ensure the caller is a registered unit
+    modifier onlyRegistered() {
+        require(unitManager.isRegistered(msg.sender), "Unit not registered");
+        _;
     }
 
     /// @notice Submits feedback from the caller's unit
     /// @param feedbackText The text of the feedback
-    function submitFeedback(string calldata feedbackText) external override {
+    function submitFeedback(string calldata feedbackText) external override onlyRegistered {
         require(bytes(feedbackText).length > 0, "Feedback text cannot be empty");
 
         DataTypes.Feedback memory feedback = DataTypes.Feedback({
@@ -30,7 +41,6 @@ contract FeedbackManager is IFeedbackManager {
         uint256 feedbackId = feedbackStorage.storeFeedback(feedback);
 
         emit FeedbackSubmitted(feedbackId, msg.sender, feedbackText);
-    
     }
 
     /// @notice Retrieves feedback by ID
@@ -83,29 +93,3 @@ contract FeedbackManager is IFeedbackManager {
         return (unitAddresses, feedbackTexts, createdAts);
     }
 }
-
-
-
- // function raiseFeedback(string calldata feedbackText) external {
-    //     DataTypes.Feedback memory newFeedback = DataTypes.Feedback({
-    //         unitAddress: msg.sender,
-    //         feedbackText: feedbackText,
-    //         status: DataTypes.FeedbackStatus.Open,
-    //         createdAt: block.timestamp
-    //     });
-        
-    //     uint256 feedbackId = feedbackStorage.storeFeedback(newFeedback);
-    //     emit FeedbackRaised(feedbackId, msg.sender, feedbackText);
-    // }
-
-    // function updateFeedbackStatus(uint256 feedbackId, DataTypes.FeedbackStatus newStatus) external {
-    //     feedbackStorage.updateFeedbackStatus(feedbackId, newStatus);
-    //     emit FeedbackStatusUpdated(feedbackId, newStatus);
-    // }
-
-    // function getFeedback(uint256 feedbackId) external view returns (DataTypes.Feedback memory) {
-    //     return feedbackStorage.getFeedback(feedbackId);
-    // }
-
-    // event FeedbackRaised(uint256 indexed feedbackId, address indexed unitAddress, string feedbackText);
-    // event FeedbackStatusUpdated(uint256 indexed feedbackId, DataTypes.FeedbackStatus newStatus);
