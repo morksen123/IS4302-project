@@ -13,5 +13,5 @@ interface ITreasuryManager {
 
     // State-Changing Functions
     function disburseFunds(address payable to, uint256 amount, uint256 proposalId) external;
-    function collectManagementFees(address[] calldata units) external;
+    function collectManagementFees() external;
 }

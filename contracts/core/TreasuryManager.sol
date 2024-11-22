@@ -65,25 +65,36 @@ contract TreasuryManager is ITreasuryManager {
         emit FundsReceived(msg.sender, msg.value);
     }
 
-    // Collect management fees from all units
-    function collectManagementFees(address[] calldata units) external onlyOwner {
-        for (uint i = 0; i < units.length; i++) {
-            address unit = units[i];
-            if (block.timestamp >= lastCollectionTime[unit] + COLLECTION_INTERVAL) {
-                uint256 fee = unitManager.getManagementFee(unit);
-                require(fee > 0, "No fee due");
+    function collectManagementFees() external onlyOwner {
+        // Get all registered units through UnitManager
+        address[] memory units = unitManager.getRegisteredUnits();
 
-                // Record collection time
-                lastCollectionTime[unit] = block.timestamp;
+        for (uint256 i = 0; i < units.length; i++) {
+            address unitAddress = units[i];
 
-                // Try to collect the fee by calling payManagementFee
-                try unitManager.payManagementFee{value: fee}() {
-                    emit FeeCollected(unit, fee, true);
+            // Skip if unit has collected within the collection interval
+            if (block.timestamp - lastCollectionTime[unitAddress] < COLLECTION_INTERVAL) {
+                continue;
+            }
+
+            // Calculate total fees (management fee + late fees)
+            uint256 managementFee = unitManager.getManagementFee(unitAddress);
+            uint256 lateFees = unitManager.getLateFee(unitAddress);
+            uint256 totalFees = managementFee + lateFees;
+
+            // Attempt to collect fees
+            bool success = false;
+            if (totalFees > 0) {
+                // Call the unit's payManagementFee function
+                try unitManager.payManagementFee{value: totalFees}() {
+                    success = true;
+                    lastCollectionTime[unitAddress] = block.timestamp;
                 } catch {
-                    // If collection fails, record as unsuccessful
-                    emit FeeCollected(unit, fee, false);
+                    success = false;
                 }
             }
+
+            emit FeeCollected(unitAddress, totalFees, success);
         }
     }
 }
