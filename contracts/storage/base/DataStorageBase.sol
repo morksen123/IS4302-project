@@ -19,7 +19,7 @@ contract DataStorageBase {
         _;
     }
 
-    function addAuthorizedContract(address contractAddress) external onlyOwner {
+    function addAuthorizedContract(address contractAddress) external virtual onlyOwner {
         authorizedContracts[contractAddress] = true;
     }
 
