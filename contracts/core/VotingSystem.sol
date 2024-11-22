@@ -2,19 +2,20 @@
 pragma solidity >=0.5.0 <0.9.0;
 
 import "../core/UnitManager.sol";
+import "../core/ProposalManager.sol";
+import "../core/TreasuryManager.sol";
+
 import "../interfaces/IVotingSystem.sol";
 import "../interfaces/IUnitManager.sol";
 
-
 import "../storage/base/DataStorageBase.sol";
 import "../storage/VotingStorage.sol";
-import "../storage/ProposalStorage.sol";
 
-import "../core/ProposalManager.sol";
 
 contract VotingSystem {
     VotingStorage public votingStorage;
     ProposalManager public proposalManager;
+    TreasuryManager public treasuryManager;
     IUnitManager private unitManager;
     address public owner;
 
@@ -43,6 +44,11 @@ contract VotingSystem {
         proposalManager = _proposalManager;
     }
 
+    // Set TreasuryManager
+    function setTreasuryManager(TreasuryManager _treasuryManager) external {
+        require(address(treasuryManager) == address(0), "Treasury manager already set");
+        treasuryManager = _treasuryManager;
+    }
     event VoteCommitted(uint256 proposalId, address indexed voter, bytes32 commitHash);
     event VoteRevealed(uint256 proposalId, address indexed voter, VotingStorage.VoteOption choice);
 
@@ -156,6 +162,45 @@ contract VotingSystem {
 
         // votingStorage.updateProposal(proposalId, proposal);
         emit VoteRevealed(proposalId, msg.sender, convChoice);
+    }
+
+    // tally votes for all proposals (subject to change which proposal to tallyVotes)
+    function tallyVotes() public {
+        for (uint256 i = 0; i < proposalManager.getAllProposals().length;i++) {
+
+            // Check if vote hits minimum quorum of 30%
+            uint256 totalVotes = (proposalManager.getVotesFor(i) + proposalManager.getVotesAgainst(i) + proposalManager.getVotesAbstained(i)) * 1000;
+            uint256 percentageVotes = ((proposalManager.getVotesFor(i) + proposalManager.getVotesAgainst(i)) * 1000 ) / totalVotes;
+
+            // Reject proposal if votes do not pass minimum quorum
+            if (percentageVotes < 300) {
+                proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Rejected);
+                continue;
+            }
+
+            // >50% needed to pass 
+            if (proposalManager.getVotesFor(i) > proposalManager.getVotesAgainst(i)) {
+
+                // Check if the suggested budget is within budget, if not reject
+                if(treasuryManager.getProposalBudget() < proposalManager.getProposal(i).suggestedBudget) {
+                    proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Rejected);
+                    continue;
+                }
+
+                //Proposal passes and status is updated to Accepted
+                proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Accepted);
+
+                // Funds are disbursed to proposal
+                
+            } else {
+                proposalManager.updateProposalStatus(i, DataTypes.ProposalStatus.Rejected);
+            }
+
+        }
+    }
+
+    function orderProposals() public view {
+        proposalManager.getAllProposals();
     }
 
     
