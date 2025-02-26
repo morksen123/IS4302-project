@@ -1,1 +1,1 @@
-##Web3 app!
+Web3 app for condo management!
